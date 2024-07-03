@@ -7,7 +7,7 @@ import userRouter from "./user/userRouter";
 // import bookRouter from "./book/bookRouter";
 
 const app = express();
-
+app.use(express.json());
 // Routes
 // HTTP GET, POST, PUT, PATCH, DELETE
 app.get("/", (req, res, next) => {
