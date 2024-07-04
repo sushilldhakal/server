@@ -48,24 +48,24 @@ const userSchema = new mongoose.Schema({
         required: true,
     },
     email: { type: String, required: true, unique: true },
-    password_hash: { type: String, required: true },
+    password: { type: String, required: true },
     roles: {
         type: [String],
         enum: ['user', 'admin', 'company', 'subscriber'],
         default: ['user'],
-        validate: {
-          validator: function(v: string[]) {
-            return v.length > 0;
-          },
-          message: 'A user must have at least one role.'
-        }
+        // validate: {
+        //   validator: function(v: string[]) {
+        //     return v.length > 0;
+        //   },
+        //   message: 'A user must have at least one role.'
+        // }
       },
-    phone: { type: String, required: true },
+    phone: { type: String },
     address: addressSchema,
     preferences: {
-      language: { type: String, required: true },
-      currency: { type: String, required: true },
-      newsletter_subscribed: { type: Boolean, required: true }
+      language: { type: String },
+      currency: { type: String },
+      newsletter_subscribed: { type: Boolean }
     },
     bookings: [bookingSchema],
     payment_methods: [paymentMethodSchema],
