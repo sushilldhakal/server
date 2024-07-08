@@ -1,25 +1,46 @@
+import path from "node:path";
 import express from 'express';
-import {searchTours, getTour, createTour, updateTour, deleteTour, getAllTours, getLatestTours, getToursByRating, getDiscountedTours} from './tourController';
+import {createTour, deleteTour, getAllTours, getDiscountedTours, getLatestTours, getTour, getToursByRating, searchTours} from './tourController';
+import multer from "multer";
+import authenticate from "../middlewares/authenticate";
 
-const router = express.Router();
+const tourRouter = express.Router();
+
+
+
+// file store local ->
+const upload = multer({
+  dest: path.resolve(__dirname, "../../public/data/uploads"),
+  // todo: put limit 10mb max.
+  limits: { fileSize: 3e7 }, // 30mb 30 * 1024 * 1024
+});
+
+// /api/books
+tourRouter.post(
+  "/",
+  authenticate,
+  upload.fields([
+    { name: "coverImage", maxCount: 1 },
+    { name: "file", maxCount: 1 },
+  ]),
+  createTour
+);
+
+
 
 // Routes for '/tours'
-router.get('/search', searchTours); // Ensure this route is defined correctly
+tourRouter.get('/search', searchTours); // Ensure this route is defined correctly
 
-router.get('/latest', getLatestTours);
+tourRouter.get('/latest', getLatestTours);
 
-router.get('/rating', getToursByRating);
+tourRouter.get('/rating', getToursByRating);
 
-router.get('/discounted', getDiscountedTours);
+tourRouter.get('/discounted', getDiscountedTours);
 
 
-router.route('/')
-  .get(getAllTours)
-  .post(createTour);
+tourRouter.get("/", getAllTours);
+tourRouter.get("/:bookId", getTour);
 
-router.route('/:id')
-  .get(getTour)
-  .patch(updateTour)
-  .delete(deleteTour);
+tourRouter.delete("/:bookId", authenticate, deleteTour);
 
-export default router;
+export default tourRouter;

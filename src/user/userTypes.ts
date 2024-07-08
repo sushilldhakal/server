@@ -43,7 +43,7 @@ export interface IReview {
   comment: string;
 }
 
-export interface IUser extends Document {
+export interface User extends Document {
   name: string;
   email: string;
   password: string;

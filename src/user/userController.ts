@@ -11,6 +11,7 @@ import { validationResult } from "express-validator";
 // Define a custom interface for extending Request
 interface AuthenticatedRequest extends Request {
     user?: any; // Add user property of type any (you can refine this type based on your actual User model)
+    roles?: any; // Add roles property of type any (you can refine this type
   }
 
 // Generate JWT token
@@ -30,8 +31,9 @@ export const authenticateJWT = (req: AuthenticatedRequest, res: Response, next: 
     }
   
     try {
-        const decoded = jwt.verify(token, config.jwtSecret as string) as any;
+        const decoded = jwt.verify(token, config.jwtSecret as string);
         req.user = decoded;
+        req.roles = decoded;
         next();
       } catch (err) {
         res.status(400).json({ message: 'Invalid token.' });
@@ -43,17 +45,10 @@ export const authenticateJWT = (req: AuthenticatedRequest, res: Response, next: 
 export const createUser = async (req: Request, res: Response, next: NextFunction) => {
   const { name, email, password } = req.body;
 
-  //validation 
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
-
   if (!name || !email || !password) {
     const error = createHttpError(400, "All fields are required");
     return next(error);
   }
-
  // Database call.
  try {
     const user = await userModel.findOne({ email });
@@ -67,7 +62,6 @@ export const createUser = async (req: Request, res: Response, next: NextFunction
   } catch (err) {
     return next(createHttpError(500, "Error while getting user"));
   }
-
   // Hash password.
   const hashedPassword = await bcrypt.hash(password, 10);
    const newUser= await userModel.create({
@@ -115,7 +109,7 @@ export const loginUser = async (req: Request, res: Response, next: NextFunction)
       algorithm: "HS256",
     });
   
-    res.json({ accessToken: token });
+    res.json({ accessToken: token, roles:user.roles });
 } catch (err) {
     return next(createHttpError(500, "Error while logging in user"));
   }
