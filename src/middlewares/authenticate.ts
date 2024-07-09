@@ -5,7 +5,7 @@ import { config } from "../config/config";
 
 export interface AuthRequest extends Request {
   userId: string;
-  roles: string;
+  roles: string | string[];
 }
 const authenticate = (req: Request, res: Response, next: NextFunction) => {
   const token = req.header("Authorization");
@@ -18,7 +18,7 @@ const authenticate = (req: Request, res: Response, next: NextFunction) => {
     const decoded = verify(parsedToken, config.jwtSecret as string) as JwtPayload;
     const _req = req as AuthRequest;
     _req.userId = decoded.sub as string;
-    _req.roles = decoded.roles;
+    _req.roles = decoded.roles as string;
 
     next();
   } catch (err) {

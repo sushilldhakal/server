@@ -13,12 +13,12 @@ const tourSchema = new mongoose.Schema<Tour>(
       type: String,
       trim: true,
     },
-    author: {
+    author: [{
       type: mongoose.Schema.Types.ObjectId,
       // add ref
-      ref: "User",
-      required: true,
-  },
+      ref: 'User',
+  }],
+
       coverImage: {
         type: String,
         required: true,
@@ -27,6 +27,11 @@ const tourSchema = new mongoose.Schema<Tour>(
         type: String,
         requied: true,
     },
+    status: {
+      type: String,
+      enum: ['Draft', 'Published', 'Archived', 'Expired'],
+      default: 'Published',
+  },
 },
 { timestamps: true }
 );

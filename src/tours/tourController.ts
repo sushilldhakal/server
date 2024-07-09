@@ -8,7 +8,6 @@ import userModel from '../user/userModel';
 import { AuthRequest } from "../middlewares/authenticate";
 
 
-
 export const createTour = async (req: Request, res: Response, next: NextFunction) => {
   const { name, genre, description } = req.body;
 
@@ -69,7 +68,7 @@ export const createTour = async (req: Request, res: Response, next: NextFunction
         console.error('Error cleaning up uploaded files:', cleanupErr);
       }
 
-      res.status(201).json({ id: newTour._id });
+      res.status(201).json({ id: newTour._id, message: newTour });
   } catch (err) {
       console.log(err);
       return next(createHttpError(500, "Error while uploading the files."));
@@ -88,6 +87,8 @@ export const getAllTours = async (
 ) => {
   try {
     const tours = await tourModel.find().populate("author", "name");
+
+
     res.status(200).json({ tours });
   } catch (err) {
     next(createHttpError(500, 'Failed to get tours'));
@@ -106,7 +107,7 @@ export const getTour = async (
       const tour = await tourModel
           .findOne({ _id: tourId })
           // populate author field
-          .populate("author", "name");
+          .populate('author.name');
       if (!tour) {
           return next(createHttpError(404, "tour not found."));
       }
@@ -132,7 +133,8 @@ export const updateTour = async (req: Request, res: Response, next: NextFunction
 
     // Check access
     const _req = req as AuthRequest;
-    if (tour.author.toString() !== _req.userId || _req.roles !== 'admin') {
+
+    if (!(tour.author.toString() == _req.userId || _req.roles == 'admin')) {
       return next(createHttpError(403, "You cannot update others' tour."));
     }
 
@@ -202,7 +204,7 @@ export const deleteTour = async (req: Request, res: Response, next: NextFunction
     // Check Access
     const _req = req as AuthRequest;
     if (tour.author.toString() !== _req.userId || _req.roles !== 'admin') {
-      return next(createHttpError(403, "You cannot delete others' tour."));
+      return next(createHttpError(403,"You cannot delete others' tour."));
     }
 
     // Extract public IDs for deletion

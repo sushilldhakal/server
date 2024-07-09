@@ -6,40 +6,7 @@ import jwt from "jsonwebtoken";
 import { sign } from "jsonwebtoken";
 import { config } from "../config/config";
 import { validationResult } from "express-validator";
-
-
-// Define a custom interface for extending Request
-interface AuthenticatedRequest extends Request {
-    user?: any; // Add user property of type any (you can refine this type based on your actual User model)
-    roles?: any; // Add roles property of type any (you can refine this type
-  }
-
-// Generate JWT token
-const generateToken = (user: any) => {
-    return jwt.sign({ id: user._id, email: user.email }, config.jwtSecret as string, {
-      expiresIn: '7d',
-    });
-  };
-
-
-    // Middleware to authenticate JWT token
-export const authenticateJWT = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-    const token = req.header('Authorization')?.replace('Bearer ', '');
-  
-    if (!token) {
-      return res.status(401).json({ message: 'Access denied. No token provided.' });
-    }
-  
-    try {
-        const decoded = jwt.verify(token, config.jwtSecret as string);
-        req.user = decoded;
-        req.roles = decoded;
-        next();
-      } catch (err) {
-        res.status(400).json({ message: 'Invalid token.' });
-      }
-  };
-
+import { AuthRequest } from "../middlewares/authenticate";
 
 // create user
 export const createUser = async (req: Request, res: Response, next: NextFunction) => {
@@ -104,16 +71,17 @@ export const loginUser = async (req: Request, res: Response, next: NextFunction)
     }
 
     // Token generation JWT
-    const token = sign({ sub: user._id }, config.jwtSecret as string, {
+    const token = sign({ sub: user._id, roles: user.roles as string }, config.jwtSecret as string, {
       expiresIn: "7d",
       algorithm: "HS256",
     });
-  
-    res.json({ accessToken: token, roles:user.roles });
-} catch (err) {
-    return next(createHttpError(500, "Error while logging in user"));
-  }
-  };
+
+      res.json({ accessToken: token, roles: user.roles, userId: user._id, userEmail: user.email });
+      } catch (err) {
+      console.error('Error while logging in user:', err);
+      next(createHttpError(500, "Error while logging in user"));
+      }
+};
 
 
 // Get all users
@@ -143,31 +111,51 @@ export const getUserById = async (req: Request, res: Response, next: NextFunctio
 
 // Update a user by ID
 export const updateUser = async (req: Request, res: Response, next: NextFunction) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+
+  const { name, email, roles, password } = req.body;
+  const userId = req.params.userId;
+
+  try {
+    const user = await userModel.findOne({ _id: userId });
+
+    if (!user) {
+      return next(createHttpError(404, "User not found"));
     }
-  
-    const { name, email, phone, address, preferences } = req.body;
-  
-    try {
-      const user = await userModel.findById(req.params.id);
-      if (user) {
-        user.name = name ?? user.name;
-        user.email = email ?? user.email;
-        user.phone = phone ?? user.phone;
-        user.address = address ?? user.address;
-        user.preferences = preferences ?? user.preferences;
-  
-        const updatedUser = await user.save();
-        res.json(updatedUser);
-      } else {
-        res.status(404).json({ message: 'User not found' });
-      }
-    } catch (err) {
-      return next(createHttpError(500, "Error while updating user"));
+
+    const _req = req as AuthRequest;
+    // Check if the current user is authorized to update the user
+    if (!(userId === _req.userId || _req.roles === "admin")) {
+      return next(createHttpError(403, "You cannot update other users."));
     }
-  };
+
+    const updateData: any = {
+      name: name || user.name,
+      email: email || user.email,
+      roles: roles || user.roles, // Ensure roles is handled as string
+    };
+
+    if (password) {
+      const salt = await bcrypt.genSalt(10);
+      updateData.password = await bcrypt.hash(password, salt);
+    }
+
+    const updatedUser = await userModel.findOneAndUpdate(
+      { _id: userId },
+      updateData,
+      { new: true }
+    );
+
+    console.log(`Updated user: ${updatedUser}`);
+    res.json(updatedUser);
+  } catch (err) {
+    console.error('Error while updating user:', err);
+    next(createHttpError(500, "Error while updating user"));
+  }
+};
 
   // Delete a user by ID
 export const deleteUser = async (req: Request, res: Response, next: NextFunction) => {

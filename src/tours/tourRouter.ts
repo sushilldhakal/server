@@ -39,8 +39,8 @@ tourRouter.get('/discounted', getDiscountedTours);
 
 
 tourRouter.get("/", getAllTours);
-tourRouter.get("/:bookId", getTour);
+tourRouter.get("/:tourId", getTour);
 
-tourRouter.delete("/:bookId", authenticate, deleteTour);
+tourRouter.delete("/:tourId", authenticate, deleteTour);
 
 export default tourRouter;
