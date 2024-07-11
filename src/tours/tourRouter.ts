@@ -41,6 +41,7 @@ tourRouter.get('/discounted', getDiscountedTours);
 tourRouter.get("/", getAllTours);
 tourRouter.get("/:tourId", getTour);
 
+// DELETE /api/tours/:tourId
 tourRouter.delete("/:tourId", authenticate, deleteTour);
 
 export default tourRouter;

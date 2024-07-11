@@ -4,12 +4,16 @@ import {Tour} from "./tourTypes";
 
 const tourSchema = new mongoose.Schema<Tour>(
   {
-    name: {
+    title: {
       type: String,
-      required: [true, 'A tour must have a name'],
+      required: true,
       trim: true,
     },
     description: {
+      type: String,
+      trim: true,
+    },
+    tourCode: {
       type: String,
       trim: true,
     },
@@ -21,11 +25,9 @@ const tourSchema = new mongoose.Schema<Tour>(
 
       coverImage: {
         type: String,
-        required: true,
     },
     file: {
         type: String,
-        requied: true,
     },
     status: {
       type: String,

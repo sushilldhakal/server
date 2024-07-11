@@ -9,39 +9,38 @@ import { AuthRequest } from "../middlewares/authenticate";
 
 
 export const createTour = async (req: Request, res: Response, next: NextFunction) => {
-  const { name, genre, description } = req.body;
+  const { title, tourCode, description } = req.body;
 
   const files = req.files as { [fieldname: string]: Express.Multer.File[] };
   // 'application/pdf'
-  const coverImageMimeType = files.coverImage[0].mimetype.split("/").at(-1);
-  const fileName = files.coverImage[0].filename;
-  const filePath = path.resolve(
-      __dirname,
-      "../../public/data/uploads",
-      fileName
-  );
-  const coverImage = files.coverImage[0];
-  const tourFile = files.file[0];
-
-  const coverImageName = coverImage.filename;
-  const coverImagePath = path.resolve(__dirname, "../../public/data/uploads", coverImageName);
-
   try {
+    let coverImageSecureUrl = '';
+    let fileSecureUrl = '';
+    if(files.coverImage && files.coverImage[0]){
+      const coverImageMimeType = files.coverImage[0].mimetype.split("/").at(-1);
+      const fileName = files.coverImage[0].filename;
+      const filePath = path.resolve(
+          __dirname,
+          "../../public/data/uploads",
+          fileName
+      );
       const uploadResult = await cloudinary.uploader.upload(filePath, {
           filename_override: fileName,
           folder: "tour-covers",
           format: coverImageMimeType,
       });
-
+      coverImageSecureUrl = uploadResult.secure_url;
+      await fs.promises.unlink(filePath);
+    }
+    if( files.file && files.file[0]){
       const tourFileName = files.file[0].filename;
       const tourFilePath = path.resolve(
           __dirname,
           "../../public/data/uploads",
           tourFileName
       );
-
       const tourFileUploadResult = await cloudinary.uploader.upload(
-          tourFilePath,
+        tourFilePath,
           {
               resource_type: "raw",
               filename_override: tourFileName,
@@ -49,35 +48,24 @@ export const createTour = async (req: Request, res: Response, next: NextFunction
               format: "pdf",
           }
       );
+      fileSecureUrl = tourFileUploadResult.secure_url;
+      await fs.promises.unlink(tourFilePath);
+    }
       const _req = req as AuthRequest;
-
       const newTour = await tourModel.create({
-          name,
+          title,
           description,
-          genre,
+          tourCode,
           author: _req.userId,
-          coverImage: uploadResult.secure_url,
-          file: tourFileUploadResult.secure_url,
+          coverImage: coverImageSecureUrl,
+          file: fileSecureUrl,
       });
-
-      // Delete temp.files
-      try {
-        await fs.promises.unlink(coverImagePath);
-        await fs.promises.unlink(tourFilePath);
-      } catch (cleanupErr) {
-        console.error('Error cleaning up uploaded files:', cleanupErr);
-      }
-
       res.status(201).json({ id: newTour._id, message: newTour });
   } catch (err) {
       console.log(err);
       return next(createHttpError(500, "Error while uploading the files."));
   }
 };
-
-
-
-
 
 // Get all tours
 export const getAllTours = async (
@@ -87,8 +75,6 @@ export const getAllTours = async (
 ) => {
   try {
     const tours = await tourModel.find().populate("author", "name");
-
-
     res.status(200).json({ tours });
   } catch (err) {
     next(createHttpError(500, 'Failed to get tours'));
@@ -102,7 +88,6 @@ export const getTour = async (
   next: NextFunction
 ) => {
   const tourId = req.params.tourId;
-
   try {
       const tour = await tourModel
           .findOne({ _id: tourId })
@@ -111,7 +96,6 @@ export const getTour = async (
       if (!tour) {
           return next(createHttpError(404, "tour not found."));
       }
-
       return res.json(tour);
   } catch (err) {
       return next(createHttpError(500, "Error while getting a tour"));
@@ -194,35 +178,28 @@ export const updateTour = async (req: Request, res: Response, next: NextFunction
 // Delete a tour
 export const deleteTour = async (req: Request, res: Response, next: NextFunction) => {
   const tourId = req.params.tourId;
-
   try {
-    const tour = await tourModel.findOne({ _id: tourId });
+    const tour = await tourModel.findById(tourId);
     if (!tour) {
       return next(createHttpError(404, "Tour not found"));
     }
-
     // Check Access
     const _req = req as AuthRequest;
-    if (tour.author.toString() !== _req.userId || _req.roles !== 'admin') {
+    if (!(tour.author.toString() == _req.userId || _req.roles.includes('admin'))) {
       return next(createHttpError(403,"You cannot delete others' tour."));
     }
-
     // Extract public IDs for deletion
     const coverFileSplits = tour.coverImage.split("/");
     const coverImagePublicId =
       coverFileSplits.at(-2) + "/" + coverFileSplits.at(-1)?.split(".").at(-2);
-
     const tourFileSplits = tour.file.split("/");
     const tourFilePublicId =
-      tourFileSplits.at(-2) + "/" + tourFileSplits.at(-1);
-
+      tourFileSplits.at(-2) + "/" + tourFileSplits.at(-1)?.split(".").at(-2);
     // Delete files from Cloudinary
     await cloudinary.uploader.destroy(coverImagePublicId);
     await cloudinary.uploader.destroy(tourFilePublicId, { resource_type: "raw" });
-
     // Delete tour from the database
     await tourModel.deleteOne({ _id: tourId });
-
     return res.sendStatus(204);
   } catch (err) {
     console.error('Error in deleteTour:', err);
