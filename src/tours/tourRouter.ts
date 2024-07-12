@@ -1,8 +1,10 @@
 import path from "node:path";
 import express from 'express';
-import {createTour, deleteTour, getAllTours, getDiscountedTours, getLatestTours, getTour, getToursByRating, searchTours} from './tourController';
+import {createTour, deleteTour, getAllTours, getDiscountedTours, getLatestTours, getTour, getToursByRating, searchTours, updateTour} from './tourController';
 import multer from "multer";
 import authenticate from "../middlewares/authenticate";
+
+
 
 const tourRouter = express.Router();
 
@@ -26,7 +28,15 @@ tourRouter.post(
   createTour
 );
 
-
+tourRouter.patch(
+  "/:tourId",
+  authenticate,
+  upload.fields([
+    { name: "coverImage", maxCount: 1 },
+    { name: "file", maxCount: 1 },
+  ]),
+  updateTour
+);
 
 // Routes for '/tours'
 tourRouter.get('/search', searchTours); // Ensure this route is defined correctly
@@ -43,5 +53,8 @@ tourRouter.get("/:tourId", getTour);
 
 // DELETE /api/tours/:tourId
 tourRouter.delete("/:tourId", authenticate, deleteTour);
+
+
+
 
 export default tourRouter;

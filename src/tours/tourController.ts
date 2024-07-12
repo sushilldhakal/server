@@ -96,7 +96,16 @@ export const getTour = async (
       if (!tour) {
           return next(createHttpError(404, "tour not found."));
       }
-      return res.json(tour);
+      const breadcrumbs = [
+        {
+          label: tour.title, // Use tour title for breadcrumb label
+          url: `/${tourId}`, // Example URL
+        }
+      ];
+      if (!breadcrumbs.length) {
+        return next(createHttpError(404, 'Failed to get breadcrumbs'));
+      }
+      return res.json({ tour,  breadcrumbs});
   } catch (err) {
       return next(createHttpError(500, "Error while getting a tour"));
   }

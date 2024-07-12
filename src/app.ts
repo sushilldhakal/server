@@ -4,6 +4,7 @@ import userRouter from "./user/userRouter";
 import tourRouter from "./tours/tourRouter";
 import cors from "cors";
 import { config } from "./config/config";
+import breadcrumbsMiddleware from "./middlewares/breadcrumbsMiddleware";
 
 const app = express();
 
@@ -13,20 +14,20 @@ app.use(
     })
 );
 
-
 app.use(express.json());
+
+// Apply breadcrumbsMiddleware before specific routes
+app.use(breadcrumbsMiddleware);
+
 // Routes
-// HTTP GET, POST, PUT, PATCH, DELETE
-app.get("/", (req, res, next) => {
-    res.json({message:"Hello this is eTravel apis"});
+app.get("/", (req, res) => {
+    res.json({ message: "Hello, this is eTravel APIs" });
 });
 
-
-app.use("/api/users",userRouter);
-app.use("/api/tours",tourRouter);
+app.use("/api/users", userRouter);
+app.use("/api/tours", tourRouter);
 
 // Global error handler
 app.use(globalErrorHandler);
-
 
 export default app;

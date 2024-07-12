@@ -11,10 +11,10 @@ services:
             - etravel-network
 
     backendapi:
-        image: codersgyan/etravel-backend:v2
+        image: sushill/etravel-backend:v2
         container_name: etravel-backend-server
         ports:
-            - "5513:5513"
+            - "8000:8000"
         networks:
             - etravel-network
         env_file: .env

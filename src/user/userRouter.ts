@@ -16,12 +16,12 @@ userRouter.post('/login', [body('email').isEmail(), body('password').isLength({ 
 
 userRouter.get('/all',authenticate, getAllUsers);
 
-userRouter.get('/:id', [param('id').isMongoId(), authenticate], getUserById);
+userRouter.get('/:userId', [param('userId').isMongoId(), authenticate], getUserById);
 
 userRouter.put(
     '/:userId',authenticate,updateUser
   );
-  userRouter.delete('/:id',[param('id').isMongoId(), authenticate], deleteUser);
+  userRouter.delete('/:userId',[param('id').isMongoId(), authenticate], deleteUser);
 
   userRouter.post('/change-role',authenticate, changeUserRole);
 

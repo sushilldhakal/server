@@ -97,13 +97,20 @@ export const getAllUsers = async (req: Request, res: Response, next: NextFunctio
 
 // Get a single user by ID
 export const getUserById = async (req: Request, res: Response, next: NextFunction) => {
+  const {userId} = req.params;
     try {
-      const user = await userModel.findById(req.params.id);
-      if (user) {
-        res.json(user);
-      } else {
-        res.status(404).json({ message: 'User not found' });
-      }
+      const user = await userModel.findById(userId);
+        if (!user) {
+          throw new Error('User not found');
+          // return next(createHttpError(404, 'User not found'));
+        }
+        const breadcrumbs = [
+          {
+            label: user.name,
+            url: `/api/users/${userId}`,
+          }
+        ];
+        res.json({user, breadcrumbs} );
     } catch (err) {
         return next(createHttpError(500, "Error while getting user"));
     }
