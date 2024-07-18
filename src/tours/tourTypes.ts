@@ -5,7 +5,7 @@ export interface Tour extends Document {
     title: string;
     description: string;
     author: mongoose.Types.ObjectId | User;
-    tourCode: string;
+    code: string;
     authorName: User;
     coverImage: string;
     file: string;

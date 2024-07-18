@@ -9,7 +9,7 @@ import { AuthRequest } from "../middlewares/authenticate";
 
 
 export const createTour = async (req: Request, res: Response, next: NextFunction) => {
-  const { title, tourCode, description } = req.body;
+  const { title, code, description } = req.body;
 
   const files = req.files as { [fieldname: string]: Express.Multer.File[] };
   // 'application/pdf'
@@ -55,7 +55,7 @@ export const createTour = async (req: Request, res: Response, next: NextFunction
       const newTour = await tourModel.create({
           title,
           description,
-          tourCode,
+          code,
           author: _req.userId,
           coverImage: coverImageSecureUrl,
           file: fileSecureUrl,

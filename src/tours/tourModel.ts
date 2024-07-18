@@ -13,13 +13,11 @@ const tourSchema = new mongoose.Schema<Tour>(
       type: String,
       trim: true,
     },
-    tourCode: {
+    code: {
       type: String,
-      trim: true,
     },
     author: [{
       type: mongoose.Schema.Types.ObjectId,
-      // add ref
       ref: 'User',
   }],
 
