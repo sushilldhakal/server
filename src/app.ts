@@ -2,6 +2,7 @@ import express, { NextFunction, Request, Response } from "express";
 import globalErrorHandler from "./middlewares/globalErrorHandler";
 import userRouter from "./user/userRouter";
 import tourRouter from "./tours/tourRouter";
+import subscriberRouter from "./subscriber/subscriberRouter";
 import cors from "cors";
 import { config } from "./config/config";
 import breadcrumbsMiddleware from "./middlewares/breadcrumbsMiddleware";
@@ -26,6 +27,7 @@ app.get("/", (req, res) => {
 
 app.use("/api/users", userRouter);
 app.use("/api/tours", tourRouter);
+app.use('/api/subscribers', subscriberRouter);
 
 // Global error handler
 app.use(globalErrorHandler);
