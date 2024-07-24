@@ -28,6 +28,7 @@ tourRouter.post(
   createTour
 );
 
+
 tourRouter.patch(
   "/:tourId",
   authenticate,

@@ -8,6 +8,11 @@ import userModel from '../user/userModel';
 import { AuthRequest } from "../middlewares/authenticate";
 
 
+interface Files {
+  coverImage?: Express.Multer.File[];
+  file?: Express.Multer.File[];
+}
+
 export const createTour = async (req: Request, res: Response, next: NextFunction) => {
   const { title, code, description } = req.body;
 
@@ -114,68 +119,85 @@ export const getTour = async (
 
 // Update a tour
 export const updateTour = async (req: Request, res: Response, next: NextFunction) => {
-  const { title, description, genre } = req.body;
+  const { title, description, status } = req.body;
   const tourId = req.params.tourId;
-
   try {
     const tour = await tourModel.findOne({ _id: tourId });
-
     if (!tour) {
       return next(createHttpError(404, "Tour not found"));
     }
-
     // Check access
     const _req = req as AuthRequest;
-
     if (!(tour.author.toString() == _req.userId || _req.roles == 'admin')) {
       return next(createHttpError(403, "You cannot update others' tour."));
     }
 
+    // Initialize variables for file URLs
+    let completeCoverImage = tour.coverImage;
+    let completeFileName = tour.file;
     // Check if image field exists
-    const files = req.files as { [fieldname: string]: Express.Multer.File[] };
-    let completeCoverImage = "";
-    if (files.coverImage) {
-      const filename = files.coverImage[0].filename;
-      const coverMimeType = files.coverImage[0].mimetype.split("/").pop();
-      const filePath = path.resolve(__dirname, "../../public/data/uploads/" + filename);
+    const files = req.files as Files;
+    // if(files){
+      if (files.coverImage && files.coverImage.length > 0) {
+        try {
+          const filename = files.coverImage[0].filename;
+          const coverMimeType = files.coverImage[0].mimetype.split("/").pop();
+          const filePath = path.resolve(__dirname, "../../public/data/uploads/" + filename);
+  
+          const uploadResult = await cloudinary.uploader.upload(filePath, {
+            filename_override: filename,
+            folder: "tour-covers",
+            format: coverMimeType,
+          });
+  
+          completeCoverImage = uploadResult.secure_url;
+          await fs.promises.unlink(filePath);
+        } catch (err) {
+          console.error('Error uploading cover image:', err);
+          return next(createHttpError(500, "Error uploading cover image"));
+        }
+      }
+  
+      // Handle tour file if present
+      if (files.file && files.file.length > 0) {
+        try {
+          const tourFilePath = path.resolve(__dirname, "../../public/data/uploads/" + files.file[0].filename);
+  
+          const uploadResultPdf = await cloudinary.uploader.upload(tourFilePath, {
+            resource_type: "raw",
+            filename_override: files.file[0].filename,
+            folder: "tour-pdfs",
+            format: "pdf",
+          });
+  
+          completeFileName = uploadResultPdf.secure_url;
+          await fs.promises.unlink(tourFilePath);
+        } catch (err) {
+          console.error('Error uploading tour file:', err);
+          return next(createHttpError(500, "Error uploading tour file"));
+        }
+      }
+  
+    // }
+    
 
-      const uploadResult = await cloudinary.uploader.upload(filePath, {
-        filename_override: filename,
-        folder: "tour-covers",
-        format: coverMimeType,
-      });
-
-      completeCoverImage = uploadResult.secure_url;
-      await fs.promises.unlink(filePath);
-    }
-
-    // Check if file field exists
-    let completeFileName = "";
-    if (files.file) {
-      const tourFilePath = path.resolve(__dirname, "../../public/data/uploads/" + files.file[0].filename);
-
-      const uploadResultPdf = await cloudinary.uploader.upload(tourFilePath, {
-        resource_type: "raw",
-        filename_override: files.file[0].filename,
-        folder: "tour-pdfs",
-        format: "pdf",
-      });
-
-      completeFileName = uploadResultPdf.secure_url;
-      await fs.promises.unlink(tourFilePath);
-    }
-
-    const updatedTour = await tourModel.findOneAndUpdate(
-      { _id: tourId },
+     // Update tour with provided fields or keep existing ones
+     const updatedTour = await tourModel.findByIdAndUpdate(
+      tourId,
       {
-        title,
-        description,
-        genre,
-        coverImage: completeCoverImage || tour.coverImage,
+        title: title || tour.title,
+        description: description || tour.description,
+        status: status || tour.status,
+        coverImage: completeCoverImage  || tour.coverImage,
         file: completeFileName || tour.file,
       },
       { new: true }
     );
+
+    if (!updatedTour) {
+      console.error('Failed to update tour in the database');
+      return next(createHttpError(500, "Failed to update the tour"));
+    }
 
     res.json(updatedTour);
   } catch (err) {
