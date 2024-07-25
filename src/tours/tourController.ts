@@ -4,7 +4,6 @@ import { Request, Response, NextFunction } from 'express';
 import createHttpError from 'http-errors';
 import tourModel from './tourModel';
 import cloudinary from '../config/cloudinary';
-import userModel from '../user/userModel';
 import { AuthRequest } from "../middlewares/authenticate";
 
 
@@ -14,7 +13,7 @@ interface Files {
 }
 
 export const createTour = async (req: Request, res: Response, next: NextFunction) => {
-  const { title, code, description } = req.body;
+  const { title, code, description,tourStatus, price } = req.body;
 
   const files = req.files as { [fieldname: string]: Express.Multer.File[] };
   // 'application/pdf'
@@ -61,6 +60,8 @@ export const createTour = async (req: Request, res: Response, next: NextFunction
           title,
           description,
           code,
+          tourStatus,
+          price,
           author: _req.userId,
           coverImage: coverImageSecureUrl,
           file: fileSecureUrl,
@@ -317,10 +318,10 @@ export const searchTours = async (
   next: NextFunction
 ) => {
   try {
-    let query: any = {};
+    const query: Record<string, any> = {};
 
     if (req.query.name) {
-      query.name = { $regex: req.query.name as string, $options: 'i' };
+      query.title = { $regex: req.query.name as string, $options: 'i' };
     }
 
     if (req.query.destinations) {
@@ -360,6 +361,9 @@ export const searchTours = async (
         query['dates.price'].$lte = parseInt(req.query.maxPrice as string, 10);
       }
     }
+
+
+    console.log('Constructed Query:', query); // Logging the query object
 
     const tours = await tourModel.find(query);
     res.status(200).json({

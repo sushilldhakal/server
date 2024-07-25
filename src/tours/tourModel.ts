@@ -16,6 +16,9 @@ const tourSchema = new mongoose.Schema<Tour>(
     code: {
       type: String,
     },
+    price: {
+      type: Number,
+    },
     author: [{
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
