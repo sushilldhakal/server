@@ -1,7 +1,7 @@
 import express from "express";
-import { getAllUsers, getUserById, createUser, loginUser, updateUser, deleteUser, changeUserRole} from "./userController";
+import { getAllUsers, getUserById, createUser, loginUser, updateUser, deleteUser, changeUserRole, verifyUser, forgotPassword, resetPassword} from "./userController";
 import { body, param } from 'express-validator';
-import authenticate from "../middlewares/authenticate";
+import {authenticate} from "../middlewares/authenticate";
 
 const userRouter = express.Router();
 
@@ -25,5 +25,12 @@ userRouter.put(
 
   userRouter.post('/change-role',authenticate, changeUserRole);
 
+  userRouter.post('/login/verify',[
+    body('token').notEmpty()
+  ], verifyUser);
+
+  userRouter.post('/login/forgot', forgotPassword);
+
+  userRouter.post('/login/reset', resetPassword);
 
 export default userRouter;

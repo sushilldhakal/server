@@ -1,4 +1,4 @@
-import express, { NextFunction, Request, Response } from "express";
+import express from "express";
 import globalErrorHandler from "./middlewares/globalErrorHandler";
 import userRouter from "./user/userRouter";
 import tourRouter from "./tours/tourRouter";
@@ -6,6 +6,7 @@ import subscriberRouter from "./subscriber/subscriberRouter";
 import cors from "cors";
 import { config } from "./config/config";
 import breadcrumbsMiddleware from "./middlewares/breadcrumbsMiddleware";
+import galleryRoutes from "./gallery/galleryRoutes";
 
 const app = express();
 
@@ -28,6 +29,7 @@ app.get("/", (req, res) => {
 app.use("/api/users", userRouter);
 app.use("/api/tours", tourRouter);
 app.use('/api/subscribers', subscriberRouter);
+app.use("/api/gallery", galleryRoutes);
 
 // Global error handler
 app.use(globalErrorHandler);

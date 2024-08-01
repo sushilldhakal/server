@@ -4,20 +4,20 @@ import bcrypt from "bcrypt";
 import userModel from "./userModel";
 import jwt from "jsonwebtoken";
 import { sign } from "jsonwebtoken";
-import { config } from "../config/config";
 import { validationResult } from "express-validator";
 import { AuthRequest } from "../middlewares/authenticate";
-
+import { config } from "../config/config";
+import { sendResetPasswordEmail, sendVerificationEmail } from "../controller/mailer";
 // create user
 export const createUser = async (req: Request, res: Response, next: NextFunction) => {
-  const { name, email, password } = req.body;
-
+  const { name, email, password, phone } = req.body;
   if (!name || !email || !password) {
     const error = createHttpError(400, "All fields are required");
     return next(error);
   }
  // Database call.
  try {
+
     const user = await userModel.findOne({ email });
     if (user) {
       const error = createHttpError(
@@ -29,31 +29,33 @@ export const createUser = async (req: Request, res: Response, next: NextFunction
   } catch (err) {
     return next(createHttpError(500, "Error while getting user"));
   }
+
   // Hash password.
   const hashedPassword = await bcrypt.hash(password, 10);
-   const newUser= await userModel.create({
+  try {
+    const newUser = await userModel.create({
       name,
       email,
+      phone,
       password: hashedPassword,
+      verified: false, 
     });
- 
-  try {
-    // Token generation JWT
-    const token = sign({ sub: newUser._id }, config.jwtSecret as string, {
-      expiresIn: "7d",
-      algorithm: "HS256",
-    });
-    // Response
-    res.status(201).json({ accessToken: token });
+
+      const verificationToken = jwt.sign({ sub: newUser._id }, config.jwtSecret, {
+        expiresIn: '1h', // 1 hour
+        algorithm: 'HS256',
+      });
+      await sendVerificationEmail(email, verificationToken);
+      res.status(201).json({ message: 'Verification email sent. Please check your inbox.' });
+   
   } catch (err) {
-    return next(createHttpError(500, "Error while signing the jwt token"));
+    return next(createHttpError(500, "Error while creating user"));
   }
 };
 
 // Login a user
 export const loginUser = async (req: Request, res: Response, next: NextFunction) => {
-    const { email, password } = req.body;
-  
+    const { email, password, keepMeSignedIn = false } = req.body;
     if (!email || !password) {
       return next(createHttpError(400, "All fields are required"));
     }
@@ -71,8 +73,9 @@ export const loginUser = async (req: Request, res: Response, next: NextFunction)
     }
 
     // Token generation JWT
+    const expiresIn = keepMeSignedIn ? '30d' : '2h';
     const token = sign({ sub: user._id, roles: user.roles as string }, config.jwtSecret as string, {
-      expiresIn: "7d",
+      expiresIn,
       algorithm: "HS256",
     });
 
@@ -155,8 +158,6 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
       updateData,
       { new: true }
     );
-
-    console.log(`Updated user: ${updatedUser}`);
     res.json(updatedUser);
   } catch (err) {
     console.error('Error while updating user:', err);
@@ -203,3 +204,85 @@ export const changeUserRole = async (req: Request, res: Response, next: NextFunc
         return next(createHttpError(500, "Error while changing user role"));
     }
   };
+
+
+export const verifyUser = async (req: Request, res: Response, next: NextFunction) => {
+  const { token } = req.body;
+
+  if (!token) {
+    return next(createHttpError(400, "Token is required"));
+  }
+
+  try {
+    const decoded = jwt.verify(token as string, config.jwtSecret) as { sub: string };
+    const user = await userModel.findById(decoded.sub);
+
+    if (!user) {
+      return next(createHttpError(400, "Invalid token"));
+    }
+
+    user.verified = true;
+    await user.save();
+
+    res.status(200).json({ message: 'Email verified successfully' });
+  } catch (err) {
+    return next(createHttpError(400, "Invalid or expired token"));
+  }
+};
+
+
+export const forgotPassword = async (req: Request, res: Response, next: NextFunction) => {
+  const { email } = req.body;
+
+  if (!email) {
+    const error = createHttpError(400, 'Email is required');
+    return next(error);
+  }
+
+  try {
+    const user = await userModel.findOne({ email });
+    if (!user) {
+      const error = createHttpError(404, 'User not found');
+      return next(error);
+    }
+
+    if (!config.jwtSecret) {
+      throw new Error('JWT Secret is not defined');
+    }
+
+    const resetToken = jwt.sign({ sub: user._id }, config.jwtSecret, {
+      expiresIn: '1h', // Reset token expires in 1 hour
+      algorithm: 'HS256',
+    });
+
+    await sendResetPasswordEmail(email, resetToken);
+
+    res.status(200).json({ message: 'Password reset email sent. Please check your inbox.' });
+  } catch (err) {
+    return next(createHttpError(500, 'Error while sending password reset email'));
+  }
+};
+
+export const resetPassword = async (req: Request, res: Response, next: NextFunction) => {
+  const { token, password } = req.body;
+
+  if (!token || !password) {
+    return next(createHttpError(400, 'Token and new password are required'));
+  }
+
+  try {
+    const decoded = jwt.verify(token, config.jwtSecret) as { sub: string };
+    const user = await userModel.findById(decoded.sub);
+
+    if (!user) {
+      return next(createHttpError(404, 'User not found'));
+    }
+    const hashedPassword = await bcrypt.hash(password, 10);
+    user.password = hashedPassword; // Assuming you are hashing passwords before saving
+    await user.save();
+
+    res.status(200).json({ message: 'Password reset successful' });
+  } catch (err) {
+    return next(createHttpError(400, 'Invalid or expired token'));
+  }
+};

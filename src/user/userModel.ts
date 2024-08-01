@@ -19,6 +19,13 @@ const userSchema = new mongoose.Schema<User>({
         //   message: 'A user must have at least one role.'
         // }
       },
+      phone: {
+        type: Number,
+      },
+      verified : {
+        type: Boolean,
+        default: false
+      }
 },
     {timestamps: true},
 );

@@ -26,4 +26,12 @@ const authenticate = (req: Request, res: Response, next: NextFunction) => {
   }
 };
 
-export default authenticate;
+const isAdminOrSeller = (req: AuthRequest, res: Response, next: NextFunction) => {
+  if (req.roles === 'admin' || req.roles === 'seller') {
+    next();
+  } else {
+    next(createHttpError(403, 'Access forbidden: Admins and Sellers only'));
+  }
+};
+
+export { authenticate, isAdminOrSeller };

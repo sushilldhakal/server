@@ -2,6 +2,27 @@ import mongoose from "mongoose";
 
 import {Tour} from "./tourTypes";
 
+
+
+const itinerarySchema = new mongoose.Schema({
+  title: {
+    type: String,
+    required: true,
+  },
+  description: {
+    type: String,
+    required: true,
+  },
+  date: {
+    type: Date,
+    required: true,
+  },
+  time: {
+    type: String,
+    required: true,
+  },
+}, { _id: false });
+
 const tourSchema = new mongoose.Schema<Tour>(
   {
     title: {
@@ -30,11 +51,12 @@ const tourSchema = new mongoose.Schema<Tour>(
     file: {
         type: String,
     },
-    status: {
+    tourStatus: {
       type: String,
       enum: ['Draft', 'Published', 'Archived', 'Expired'],
       default: 'Published',
   },
+  itinerary: [itinerarySchema], 
 },
 { timestamps: true }
 );

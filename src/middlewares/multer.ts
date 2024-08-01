@@ -9,7 +9,7 @@ const storage = multer.diskStorage({
   },
 });
 
-const upload = multer({
+export const upload = multer({
   storage: storage,
   fileFilter: function (req, file, cb) {
     const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf'];
@@ -20,8 +20,23 @@ const upload = multer({
     }
   },
 }).fields([
-  { name: 'coverImage', maxCount: 1 },
+  { name: 'coverImage', maxCount: 1},
   { name: 'file', maxCount: 1 }
 ]);
 
-export default upload;
+
+export const uploadMultiple = multer({
+  storage: storage,
+  fileFilter: function (req, file, cb) {
+    const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type'));
+    }
+  },
+}).fields([
+  { name: 'coverImage', maxCount: 20},
+  { name: 'file', maxCount: 20 }
+]);
+

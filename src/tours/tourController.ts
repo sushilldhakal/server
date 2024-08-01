@@ -13,7 +13,7 @@ interface Files {
 }
 
 export const createTour = async (req: Request, res: Response, next: NextFunction) => {
-  const { title, code, description,tourStatus, price } = req.body;
+  const { title, code, description,tourStatus, price, itinerary } = req.body;
 
   const files = req.files as { [fieldname: string]: Express.Multer.File[] };
   // 'application/pdf'
@@ -30,7 +30,7 @@ export const createTour = async (req: Request, res: Response, next: NextFunction
       );
       const uploadResult = await cloudinary.uploader.upload(filePath, {
           filename_override: fileName,
-          folder: "tour-covers",
+          folder: "main/tour-covers",
           format: coverImageMimeType,
       });
       coverImageSecureUrl = uploadResult.secure_url;
@@ -48,7 +48,7 @@ export const createTour = async (req: Request, res: Response, next: NextFunction
           {
               resource_type: "raw",
               filename_override: tourFileName,
-              folder: "tour-pdfs",
+              folder: "main/tour-pdfs",
               format: "pdf",
           }
       );
@@ -56,6 +56,20 @@ export const createTour = async (req: Request, res: Response, next: NextFunction
       await fs.promises.unlink(tourFilePath);
     }
       const _req = req as AuthRequest;
+
+      const itinerary: { title: string, description: string, date: Date, time: string }[] = [];
+    // Check if itinerary is provided and parse it
+    if (req.body.itinerary) {
+      for (let i = 0; req.body.itinerary[i] !== undefined; i++) {
+        itinerary.push({
+          title: req.body.itinerary[i].title,
+          description: req.body.itinerary[i].description,
+          date: new Date(req.body.itinerary[i].date),
+          time: req.body.itinerary[i].time
+        });
+      }
+    }
+    
       const newTour = await tourModel.create({
           title,
           description,
@@ -65,6 +79,7 @@ export const createTour = async (req: Request, res: Response, next: NextFunction
           author: _req.userId,
           coverImage: coverImageSecureUrl,
           file: fileSecureUrl,
+          itinerary
       });
       res.status(201).json({ id: newTour._id, message: newTour });
   } catch (err) {
@@ -120,7 +135,7 @@ export const getTour = async (
 
 // Update a tour
 export const updateTour = async (req: Request, res: Response, next: NextFunction) => {
-  const { title, description, status } = req.body;
+  const { title, description, tourStatus, price } = req.body;
   const tourId = req.params.tourId;
   try {
     const tour = await tourModel.findOne({ _id: tourId });
@@ -147,7 +162,7 @@ export const updateTour = async (req: Request, res: Response, next: NextFunction
   
           const uploadResult = await cloudinary.uploader.upload(filePath, {
             filename_override: filename,
-            folder: "tour-covers",
+            folder: "main/tour-covers",
             format: coverMimeType,
           });
   
@@ -167,7 +182,7 @@ export const updateTour = async (req: Request, res: Response, next: NextFunction
           const uploadResultPdf = await cloudinary.uploader.upload(tourFilePath, {
             resource_type: "raw",
             filename_override: files.file[0].filename,
-            folder: "tour-pdfs",
+            folder: "main/tour-pdfs",
             format: "pdf",
           });
   
@@ -188,9 +203,10 @@ export const updateTour = async (req: Request, res: Response, next: NextFunction
       {
         title: title || tour.title,
         description: description || tour.description,
-        status: status || tour.status,
+        tourStatus: tourStatus || tour.tourStatus,
         coverImage: completeCoverImage  || tour.coverImage,
         file: completeFileName || tour.file,
+        price: price || tour.price,
       },
       { new: true }
     );

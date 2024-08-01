@@ -12,5 +12,11 @@ export interface Tour extends Document {
     file: string;
     createdAt: Date;
   updatedAt: Date;
-  status: string;
+  tourStatus: string;
+  itinerary:{
+    title: string;
+    description: string;
+    date?: Date;
+    time?: string;
+  }[];
   }

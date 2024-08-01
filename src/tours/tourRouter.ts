@@ -2,7 +2,7 @@ import path from "node:path";
 import express from 'express';
 import {createTour, deleteTour, getAllTours, getDiscountedTours, getLatestTours, getTour, getToursByRating, searchTours, updateTour} from './tourController';
 import multer from "multer";
-import authenticate from "../middlewares/authenticate";
+import {authenticate} from "../middlewares/authenticate";
 
 
 
