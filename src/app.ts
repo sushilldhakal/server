@@ -7,6 +7,8 @@ import cors from "cors";
 import { config } from "./config/config";
 import breadcrumbsMiddleware from "./middlewares/breadcrumbsMiddleware";
 import galleryRoutes from "./gallery/galleryRoutes";
+import generateRouter from "./generate/generateRoute";
+
 
 const app = express();
 
@@ -17,6 +19,7 @@ app.use(
 );
 
 app.use(express.json());
+
 
 // Apply breadcrumbsMiddleware before specific routes
 app.use(breadcrumbsMiddleware);
@@ -30,6 +33,8 @@ app.use("/api/users", userRouter);
 app.use("/api/tours", tourRouter);
 app.use('/api/subscribers', subscriberRouter);
 app.use("/api/gallery", galleryRoutes);
+
+app.use("/api/generate", generateRouter);
 
 // Global error handler
 app.use(globalErrorHandler);

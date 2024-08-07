@@ -25,8 +25,18 @@ export const upload = multer({
 ]);
 
 
+const multipleStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, './public/data/uploads/multi');
+  },
+  filename: function (req, file, cb) {
+    cb(null, `${Date.now()}_${file.originalname}`);
+  },
+});
+
+
 export const uploadMultiple = multer({
-  storage: storage,
+  storage: multipleStorage,
   fileFilter: function (req, file, cb) {
     const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf'];
     if (allowedTypes.includes(file.mimetype)) {
@@ -36,7 +46,7 @@ export const uploadMultiple = multer({
     }
   },
 }).fields([
-  { name: 'coverImage', maxCount: 20},
-  { name: 'file', maxCount: 20 }
+  { name: 'pdf', maxCount: 1 },
+  { name: 'imageList', maxCount: 10},
 ]);
 

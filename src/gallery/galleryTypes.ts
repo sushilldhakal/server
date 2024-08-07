@@ -11,4 +11,5 @@ export interface Image {
   export interface GalleryDocument extends mongoose.Document {
     user: mongoose.Types.ObjectId;
     images: Image[];
+    PDF: Image[];
   }

@@ -17,6 +17,7 @@ const gallerySchema: Schema<GalleryDocument> = new mongoose.Schema(
           required: true,
         },
         images: [imageSchema],
+        PDF: [imageSchema],
       },
       { timestamps: true }
     );
