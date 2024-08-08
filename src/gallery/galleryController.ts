@@ -171,13 +171,13 @@ export const getImages = async (req: AuthRequest, res: Response, next: NextFunct
       });
   }
 }
-      await Promise.all(uploadPromises);
+const imageUrls = await Promise.all(uploadPromises); 
 
       if (gallery) {
         await gallery.save();
         gallery = await Gallery.findOne({ user: userId }).populate('images').exec();
         if (gallery) {
-          res.json(gallery.images);
+          res.json({ images: gallery.images,urls : imageUrls});
         } else {
           res.status(404).json({ message: 'Gallery not found' });
         }
