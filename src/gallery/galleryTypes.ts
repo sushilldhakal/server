@@ -6,6 +6,7 @@ export interface Image {
     asset_id: string; 
     description?: string;
     uploadedAt: Date;
+    title?:string;
   }
   
   export interface GalleryDocument extends mongoose.Document {

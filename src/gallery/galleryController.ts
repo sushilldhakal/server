@@ -24,7 +24,77 @@ interface CloudinaryResource {
   created_at: string;
   url: string;
   secure_url: string;
+  width:string;
+  height:string;
+  bytes:string;
 }
+
+interface CustomRequest extends Request {
+  params: {
+    publicId: string;
+  };
+}
+
+
+export const getSingleImage = async (req: CustomRequest, res: Response, next: NextFunction) => {
+  try {
+    const { publicId } = req.params;
+    if (!publicId) {
+      return next(createHttpError(400, 'publicId parameter is required'));
+    }
+    const fetchPublicId = `main/tour-cover/${publicId}`
+    // Fetch image details from Cloudinary
+    const cloudinaryResource = await fetchResourceByPublicId(fetchPublicId);
+
+    if (!cloudinaryResource) {
+      return next(createHttpError(404, 'Image not found on Cloudinary'));
+    }
+
+    // Find the image in MongoDB using the asset_id from Cloudinary
+    const imageDetails = await Gallery.findOne(
+      { 'images.asset_id': cloudinaryResource.asset_id },
+      { 'images.$': 1 }
+    ).exec();
+
+    if (!imageDetails || !imageDetails.images || imageDetails.images.length === 0) {
+      return next(createHttpError(404, 'Image not found in gallery'));
+    }
+
+    const image = imageDetails.images[0];
+
+    res.json([{
+      url: cloudinaryResource.secure_url,
+      description: image.description,
+      title: image.title,
+      uploadedAt: image.uploadedAt,
+      asset_id: image.asset_id,
+      width: cloudinaryResource.width,
+      height: cloudinaryResource.height,
+      format: cloudinaryResource.format,
+      bytes: cloudinaryResource.bytes,
+      created_at: cloudinaryResource.created_at,
+      public_id: cloudinaryResource.public_id,
+      secure_url: cloudinaryResource.secure_url,
+    }]);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const fetchResourceByPublicId = async (publicId: string): Promise<CloudinaryResource | null> => {
+  return new Promise((resolve, reject) => {
+    cloudinary.api.resource(
+      publicId, // Use the public ID here
+      (err: unknown, result: CloudinaryResource) => {
+        if (err) {
+          console.error('Error fetching resource:', err);
+          return reject(err);
+        }
+        resolve(result);
+      }
+    );
+  });
+};
 
 export const getImages = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
@@ -94,7 +164,7 @@ export const getImages = async (req: AuthRequest, res: Response, next: NextFunct
 };
   export const addImage = async (req: AuthRequest, res: Response, next: NextFunction) => {
     const { userId } = req.params;
-    const { description } = req.body;
+    const { description, title } = req.body;
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
 
     console.log("files ", req.files)
@@ -121,6 +191,7 @@ export const getImages = async (req: AuthRequest, res: Response, next: NextFunct
                 _id: new mongoose.Types.ObjectId(),
                 url: result.secure_url,
                 asset_id: result.asset_id,
+                title: title || file.filename,
                 description: description || '',
                 uploadedAt: new Date(),
             };
@@ -153,6 +224,7 @@ export const getImages = async (req: AuthRequest, res: Response, next: NextFunct
                   _id: new mongoose.Types.ObjectId(),
                   url: result.secure_url,
                   asset_id: result.asset_id,
+                  title: title || file.filename,
                   description: description || '',
                   uploadedAt: new Date(),
               };

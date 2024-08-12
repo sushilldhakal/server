@@ -5,6 +5,7 @@ const imageSchema = new Schema<Image>({
   _id: { type: Schema.Types.ObjectId, required: true, auto: true },
   url: { type: String, required: true },
   description: { type: String },
+  title: { type: String },
   uploadedAt: { type: Date, default: Date.now },
   asset_id: { type: String, required: true },
 });
