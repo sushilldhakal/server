@@ -13,29 +13,29 @@ interface Files {
 }
 
 export const createTour = async (req: Request, res: Response, next: NextFunction) => {
-  const { title, code, description,tourStatus, price, itinerary } = req.body;
+  const { title, coverImage, code, description,tourStatus, price, itinerary } = req.body;
 
   const files = req.files as { [fieldname: string]: Express.Multer.File[] };
   // 'application/pdf'
   try {
-    let coverImageSecureUrl = '';
+    // let coverImageSecureUrl = '';
     let fileSecureUrl = '';
-    if(files.coverImage && files.coverImage[0]){
-      const coverImageMimeType = files.coverImage[0].mimetype.split("/").at(-1);
-      const fileName = files.coverImage[0].filename;
-      const filePath = path.resolve(
-          __dirname,
-          "../../public/data/uploads",
-          fileName
-      );
-      const uploadResult = await cloudinary.uploader.upload(filePath, {
-          filename_override: fileName,
-          folder: "main/tour-covers",
-          format: coverImageMimeType,
-      });
-      coverImageSecureUrl = uploadResult.secure_url;
-      await fs.promises.unlink(filePath);
-    }
+    // if(files.coverImage && files.coverImage[0]){
+    //   const coverImageMimeType = files.coverImage[0].mimetype.split("/").at(-1);
+    //   const fileName = files.coverImage[0].filename;
+    //   const filePath = path.resolve(
+    //       __dirname,
+    //       "../../public/data/uploads",
+    //       fileName
+    //   );
+    //   const uploadResult = await cloudinary.uploader.upload(filePath, {
+    //       filename_override: fileName,
+    //       folder: "main/tour-covers",
+    //       format: coverImageMimeType,
+    //   });
+    //   coverImageSecureUrl = uploadResult.secure_url;
+    //   await fs.promises.unlink(filePath);
+    // }
     if( files.file && files.file[0]){
       const tourFileName = files.file[0].filename;
       const tourFilePath = path.resolve(
@@ -77,7 +77,7 @@ export const createTour = async (req: Request, res: Response, next: NextFunction
           tourStatus,
           price,
           author: _req.userId,
-          coverImage: coverImageSecureUrl,
+          coverImage,
           file: fileSecureUrl,
           itinerary
       });
@@ -135,7 +135,7 @@ export const getTour = async (
 
 // Update a tour
 export const updateTour = async (req: Request, res: Response, next: NextFunction) => {
-  const { title, description, tourStatus, price } = req.body;
+  const { title, coverImage, description, tourStatus, price } = req.body;
   const tourId = req.params.tourId;
   try {
     const tour = await tourModel.findOne({ _id: tourId });
@@ -149,30 +149,30 @@ export const updateTour = async (req: Request, res: Response, next: NextFunction
     }
 
     // Initialize variables for file URLs
-    let completeCoverImage = tour.coverImage;
+    // let completeCoverImage = tour.coverImage;
     let completeFileName = tour.file;
     // Check if image field exists
     const files = req.files as Files;
     // if(files){
-      if (files.coverImage && files.coverImage.length > 0) {
-        try {
-          const filename = files.coverImage[0].filename;
-          const coverMimeType = files.coverImage[0].mimetype.split("/").pop();
-          const filePath = path.resolve(__dirname, "../../public/data/uploads/" + filename);
+      // if (files.coverImage && files.coverImage.length > 0) {
+      //   try {
+      //     const filename = files.coverImage[0].filename;
+      //     const coverMimeType = files.coverImage[0].mimetype.split("/").pop();
+      //     const filePath = path.resolve(__dirname, "../../public/data/uploads/" + filename);
   
-          const uploadResult = await cloudinary.uploader.upload(filePath, {
-            filename_override: filename,
-            folder: "main/tour-covers",
-            format: coverMimeType,
-          });
+      //     const uploadResult = await cloudinary.uploader.upload(filePath, {
+      //       filename_override: filename,
+      //       folder: "main/tour-covers",
+      //       format: coverMimeType,
+      //     });
   
-          completeCoverImage = uploadResult.secure_url;
-          await fs.promises.unlink(filePath);
-        } catch (err) {
-          console.error('Error uploading cover image:', err);
-          return next(createHttpError(500, "Error uploading cover image"));
-        }
-      }
+      //     completeCoverImage = uploadResult.secure_url;
+      //     await fs.promises.unlink(filePath);
+      //   } catch (err) {
+      //     console.error('Error uploading cover image:', err);
+      //     return next(createHttpError(500, "Error uploading cover image"));
+      //   }
+      // }
   
       // Handle tour file if present
       if (files.file && files.file.length > 0) {
@@ -204,7 +204,7 @@ export const updateTour = async (req: Request, res: Response, next: NextFunction
         title: title || tour.title,
         description: description || tour.description,
         tourStatus: tourStatus || tour.tourStatus,
-        coverImage: completeCoverImage  || tour.coverImage,
+        coverImage:  coverImage || tour.coverImage,
         file: completeFileName || tour.file,
         price: price || tour.price,
       },
