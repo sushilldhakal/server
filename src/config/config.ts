@@ -10,6 +10,7 @@ const _config = {
   cloudinaryApiKey: process.env.CLOUDINARY_API_KEY,
   cloudinarySecret: process.env.CLOUDINARY_API_SECRET,
   frontendDomain: process.env.FRONTEND_DOMAIN,
+  homePage: process.env.HOME_PAGE,
   emailUser: process.env.EMAIL_USER,
   emailPassword: process.env.EMAIL_PASSWORD,
   baseUrl: process.env.BASE_URL,

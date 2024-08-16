@@ -12,9 +12,17 @@ import subscriberRouter from "./subscriber/subscriberRouter";
 
 const app = express();
 
+// CORS configuration
 app.use(
     cors({
-        origin: config.frontendDomain,
+        origin: (origin, callback) => {
+            // Check if the origin is in the allowed list or if it's not provided (e.g., for non-browser requests)
+            if (config.frontendDomain === origin || config.homePage === origin || !origin) {
+                callback(null, true);
+            } else {
+                callback(new Error('Not allowed by CORS'));
+            }
+        }
     })
 );
 
