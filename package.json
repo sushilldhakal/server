@@ -4,7 +4,7 @@
   "description": "node server Rest API",
   "main": "index.js",
   "scripts": {
-    "dev": "nodemon server.ts",
+    "dev": "node server.ts",
     "build": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -35,7 +35,6 @@
   "dependencies": {
     "@types/express-fileupload": "^1.5.0",
     "@types/nodemailer": "^6.4.15",
-    "axios": "^1.7.3",
     "bcrypt": "^5.1.1",
     "cloudinary": "^2.2.0",
     "cors": "^2.8.5",

@@ -1,5 +1,4 @@
 import { Request, Response } from "express";
-import axios from 'axios';
 import rateLimit from 'express-rate-limit';
 import { config } from "../config/config";
 import OpenAI from "openai";
