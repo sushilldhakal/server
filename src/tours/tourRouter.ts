@@ -50,7 +50,20 @@ tourRouter.get('/discounted', getDiscountedTours);
 
 
 tourRouter.get("/", getAllTours);
-tourRouter.get("/:tourId", getTour);
+// tourRouter.get("/:tourId", getTour);
+
+tourRouter.get("/:tourId", (req, res, next) => {
+  const { tourId } = req.params;
+
+  // Check if the tourId matches any static route names
+  const staticRoutes = ["latest", "search", "rating", "discounted"];
+  if (staticRoutes.includes(tourId)) {
+    return next(); // Pass control to the next matching route
+  }
+
+  // Otherwise, proceed to get the tour by ID
+  getTour(req, res, next);
+});
 
 // DELETE /api/tours/:tourId
 tourRouter.delete("/:tourId", authenticate, deleteTour);

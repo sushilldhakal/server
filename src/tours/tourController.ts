@@ -270,9 +270,7 @@ export const getLatestTours = async (
     res.status(200).json({
       status: 'success',
       results: tours.length,
-      data: {
-        tours,
-      },
+      tours,
     });
   } catch (err) {
     console.error('Get Latest Tours Error:', err);
