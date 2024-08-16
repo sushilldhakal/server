@@ -2,12 +2,12 @@ import express from "express";
 import globalErrorHandler from "./middlewares/globalErrorHandler";
 import userRouter from "./user/userRouter";
 import tourRouter from "./tours/tourRouter";
-import subscriberRouter from "./subscriber/subscriberRouter";
 import cors from "cors";
 import { config } from "./config/config";
 import breadcrumbsMiddleware from "./middlewares/breadcrumbsMiddleware";
 import galleryRoutes from "./gallery/galleryRoutes";
 import generateRouter from "./generate/generateRoute";
+import subscriberRouter from "./subscriber/subscriberRouter";
 
 
 const app = express();

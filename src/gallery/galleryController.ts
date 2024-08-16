@@ -123,7 +123,7 @@ export const getImages = async (req: AuthRequest, res: Response, next: NextFunct
             max_results: maxResults,
             next_cursor: nextCursor,
           },
-          (err: any, result: CloudinaryApiResponse) => {
+          (err: unknown, result: CloudinaryApiResponse) => {
             if (err) {
               console.error('Error fetching resources:', err);
               return reject(err);

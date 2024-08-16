@@ -8,7 +8,7 @@ const startServer = async () => {
 
   const port =  Number(config.port) || 4000;
 
-  app.listen(port, '0.0.0.0',() => {
+  app.listen(port,() => {
     console.log(`Listening on port: ${port}`);
   });
 };

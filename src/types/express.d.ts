@@ -1,4 +1,3 @@
-import express from "express";
 import { Breadcrumb } from '../middlewares/breadcrumbsMiddleware';
 
 
