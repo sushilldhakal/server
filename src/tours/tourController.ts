@@ -30,7 +30,7 @@ export const createTour = async (req: Request, res: Response, next: NextFunction
     //   );
     //   const uploadResult = await cloudinary.uploader.upload(filePath, {
     //       filename_override: fileName,
-    //       folder: "main/tour-covers",
+    //       folder: "main/tour-cover",
     //       format: coverImageMimeType,
     //   });
     //   coverImageSecureUrl = uploadResult.secure_url;
@@ -48,7 +48,7 @@ export const createTour = async (req: Request, res: Response, next: NextFunction
           {
               resource_type: "raw",
               filename_override: tourFileName,
-              folder: "main/tour-pdfs",
+              folder: "main/tour-pdf",
               format: "pdf",
           }
       );
@@ -136,6 +136,8 @@ export const getTour = async (
 // Update a tour
 export const updateTour = async (req: Request, res: Response, next: NextFunction) => {
   const { title, coverImage, description, tourStatus, price } = req.body;
+
+  console.log(req.body);
   const tourId = req.params.tourId;
   try {
     const tour = await tourModel.findOne({ _id: tourId });
@@ -162,7 +164,7 @@ export const updateTour = async (req: Request, res: Response, next: NextFunction
   
       //     const uploadResult = await cloudinary.uploader.upload(filePath, {
       //       filename_override: filename,
-      //       folder: "main/tour-covers",
+      //       folder: "main/tour-cover",
       //       format: coverMimeType,
       //     });
   
@@ -182,7 +184,7 @@ export const updateTour = async (req: Request, res: Response, next: NextFunction
           const uploadResultPdf = await cloudinary.uploader.upload(tourFilePath, {
             resource_type: "raw",
             filename_override: files.file[0].filename,
-            folder: "main/tour-pdfs",
+            folder: "main/tour-pdf",
             format: "pdf",
           });
   

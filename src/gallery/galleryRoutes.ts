@@ -8,7 +8,7 @@ const galleryRoutes = express.Router();
 galleryRoutes.get('/images', authenticate as any, isAdminOrSeller as any, getImages as any);
 galleryRoutes.get('/:publicId', getSingleImage as any);
 galleryRoutes.post('/:userId/', authenticate as any,uploadMultiple, addImage as any);
-galleryRoutes.put('/:userId/:imageId', authenticate as any, updateImage as any);
+galleryRoutes.patch('/:userId/:imageId', authenticate as any, updateImage as any);
 galleryRoutes.delete('/:userId', authenticate as any, deleteImages as any);
 
 

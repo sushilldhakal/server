@@ -2,14 +2,13 @@ import { Request, Response } from "express";
 import rateLimit from 'express-rate-limit';
 import { config } from "../config/config";
 import OpenAI from "openai";
+import { AuthRequest } from "../middlewares/authenticate";
+import UserSettings from "../user/userSettingModel";
 
-
-const openai = new OpenAI({
-    apiKey: config.openAIApiKey,
-    baseURL: config.openAIApiBaseUrl || "https://api.openai.com/v1",
-  });
-
-
+// const openai = new OpenAI({
+//     apiKey: config.openAIApiKey,
+//     baseURL: config.openAIApiBaseUrl || "https://api.openai.com/v1",
+//   });
 
 const limiter = rateLimit({
     windowMs: 24 * 60 * 60 * 1000, // 24 hours
@@ -17,15 +16,27 @@ const limiter = rateLimit({
     message: 'You have reached your request limit for the day.',
   });
 
-  export const generateCompletion = async (req: Request, res: Response) => {
+  export const generateCompletion = async (req: AuthRequest, res: Response) => {
     try {
       const { prompt, option, command } = req.body;
-
-      console.log('Received request:', req.body);
+      const userId = req.userId;
   
-      if (!config.openAIApiKey) {
-        return res.status(400).json({ error: 'Missing OPENAI_API_KEY' });
-      }
+
+      if (!userId) {
+        return res.status(400).json({ error: 'User ID is required' });
+    }
+
+    // Fetch user settings from the database
+    const settings = await UserSettings.findOne({ user: userId });
+    if (!settings || !settings.openaiApiKey) {
+        return res.status(410).json({ error: 'Missing OpenAI API key' });
+    }
+
+     // Initialize OpenAI client with the retrieved API key
+     const openai = new OpenAI({
+      apiKey: settings.openaiApiKey,
+      baseURL: config.openAIApiBaseUrl || "https://api.openai.com/v1",
+  });
   
       // Define messages based on the option
       let messages: Array<{ role: 'system' | 'user' | 'assistant', content: string }>;

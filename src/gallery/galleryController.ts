@@ -1,12 +1,15 @@
 import { Response, NextFunction } from 'express';
 import Gallery from './galleryModel'; 
 import { GalleryDocument } from './galleryTypes';
-import cloudinary from '../config/cloudinary';
+// import cloudinary from '../config/cloudinary';
+import { v2 as cloudinary } from "cloudinary";
 import createHttpError from 'http-errors';
 import { AuthRequest } from '../middlewares/authenticate';
 import mongoose from 'mongoose';
 import path from 'path';
 import fs from 'fs';
+import UserSettings from "../user/userSettingModel";
+import User from "../user/userModel";
 
 interface CloudinaryApiResponse {
   resources: CloudinaryResource[];
@@ -33,35 +36,67 @@ interface CustomRequest extends Request {
   params: {
     publicId: string;
   };
+  query: {
+    userId: string;
+  }
 }
 
+const findUserByAssetId = async (assetId: string) => {
+  try {
+    // Query to find the gallery document that contains the image with the given asset_id
+    const gallery = await Gallery.findOne({ 'images.asset_id': assetId }).populate('user');
+
+    // If no gallery is found, return a not found message
+    if (!gallery) {
+      return { message: 'No gallery found with this asset_id' };
+    }
+
+    // Return the user information associated with the gallery
+    return gallery.user._id.toString();
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      throw new Error(`Error finding user by asset_id: ${error.message}`);
+    } else {
+      throw new Error('An unknown error occurred while finding user by asset_id');
+    }
+  }
+};
 
 export const getSingleImage = async (req: CustomRequest, res: Response, next: NextFunction) => {
   try {
     const { publicId } = req.params;
+    const { userId } = req.query; // Assume userId is passed in query
     if (!publicId) {
       return next(createHttpError(400, 'publicId parameter is required'));
     }
-    const fetchPublicId = `main/tour-cover/${publicId}`
-    // Fetch image details from Cloudinary
-    const cloudinaryResource = await fetchResourceByPublicId(fetchPublicId);
+    const fetchPublicId = `main/tour-cover/${publicId}`;
+    // Fetch image from MongoDB using asset_id
+    const imageDetails = await Gallery.findOne(
+      { 'images.public_id': fetchPublicId },
+      { 'images.$': 1, user: 1 } // Get the image and the user who uploaded it
+    ).exec();
+    if (!imageDetails || !imageDetails.images || imageDetails.images.length === 0) {
+      return next(createHttpError(404, 'Image not found in gallery'));
+    }
+    const image = imageDetails.images[0];
+    const ownerId = imageDetails.user;
+    // Fetch user roles from the database
+    const user = await User.findById(userId);
+    if (!user) {
+      return next(createHttpError(404, 'User not found'));
+    }
+    const { roles } = user;
+    // If the user is neither admin nor the owner, deny access
+    if (!roles.includes('admin') && ownerId.toString() !== userId) {
+      return next(createHttpError(403, 'Access denied: You are not authorized to view this image.'));
+    }
+    // Fetch the uploader's (seller's) Cloudinary credentials
+    const cloudinaryResource = await fetchResourceByPublicId(fetchPublicId, ownerId.toString(), res);
 
     if (!cloudinaryResource) {
       return next(createHttpError(404, 'Image not found on Cloudinary'));
     }
-
-    // Find the image in MongoDB using the asset_id from Cloudinary
-    const imageDetails = await Gallery.findOne(
-      { 'images.asset_id': cloudinaryResource.asset_id },
-      { 'images.$': 1 }
-    ).exec();
-
-    if (!imageDetails || !imageDetails.images || imageDetails.images.length === 0) {
-      return next(createHttpError(404, 'Image not found in gallery'));
-    }
-
-    const image = imageDetails.images[0];
-
+    // Respond with image details
     res.json([{
       url: cloudinaryResource.secure_url,
       description: image.description,
@@ -81,13 +116,27 @@ export const getSingleImage = async (req: CustomRequest, res: Response, next: Ne
   }
 };
 
-const fetchResourceByPublicId = async (publicId: string): Promise<CloudinaryResource | null> => {
+// Fetches Cloudinary resource using the uploader's Cloudinary credentials
+const fetchResourceByPublicId = async (publicId: string, ownerId: string, res: Response): Promise<CloudinaryResource | null> => {
+  const settings = await UserSettings.findOne({ user: ownerId });
+  if (!settings || !settings.cloudinaryCloud || !settings.cloudinaryApiKey || !settings.cloudinaryApiSecret) {
+    res.status(410).json({ error: 'Missing Cloudinary API key for the uploader.' });
+    return null;
+  }
+
+  // Configure Cloudinary with the uploader's credentials
+  cloudinary.config({
+    cloud_name: settings.cloudinaryCloud,
+    api_key: settings.cloudinaryApiKey,
+    api_secret: settings.cloudinaryApiSecret,
+  });
+
   return new Promise((resolve, reject) => {
     cloudinary.api.resource(
-      publicId, // Use the public ID here
+      publicId,
       (err: unknown, result: CloudinaryResource) => {
         if (err) {
-          console.error('Error fetching resource:', err);
+          console.error('Error fetching Cloudinary resource:', err);
           return reject(err);
         }
         resolve(result);
@@ -99,94 +148,144 @@ const fetchResourceByPublicId = async (publicId: string): Promise<CloudinaryReso
 export const getImages = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { userId, roles } = req; // Assuming roles and userId are attached to the request object
-    const { pageSize = '10', nextCursor } = req.query;
-    
-    // Handle pageSize with proper type checks
+    const { pageSize = '10', page = '1' } = req.query;
+
+    // Handle pageSize and page with proper type checks
     const parsedPageSize = Number(pageSize);
-    if (isNaN(parsedPageSize) || parsedPageSize < 1) {
-      return next(createHttpError(400, 'Invalid pageSize parameter'));
+    const parsedPage = Number(page);
+
+    if (isNaN(parsedPageSize) || parsedPageSize < 1 || isNaN(parsedPage) || parsedPage < 1) {
+      return next(createHttpError(400, 'Invalid pageSize or page parameter'));
     }
 
-    // Fetch resources from Cloudinary
-    const fetchResources = async (
-      prefix: string, 
-      resourceType: string = 'image', 
-      maxResults: number = parsedPageSize, 
-      nextCursor?: string
-    ): Promise<CloudinaryApiResponse> => {
-      return new Promise((resolve, reject) => {
-        cloudinary.api.resources(
-          {
-            type: 'upload',
-            prefix: 'main/tour-cover/',
-            resource_type: resourceType,
-            max_results: maxResults,
-            next_cursor: nextCursor,
-          },
-          (err: unknown, result: CloudinaryApiResponse) => {
-            if (err) {
-              console.error('Error fetching resources:', err);
-              return reject(err);
-            }
-            resolve(result);
-          }
-        );
-      });
-    };
+    // Set up the query to fetch the user's gallery
+    const query = roles === 'admin'
+      ? {} // Admin can access all galleries
+      : { user: new mongoose.Types.ObjectId(userId) }; // Seller can only access their own gallery
 
-    let resources: CloudinaryResource[] = [];
-    let nextCursorResponse: string | null = null;
+    // Find galleries with pagination
+    const galleries = await Gallery.find(query)
+      .sort({ createdAt: -1 }) // Sort by most recent
+      .skip((parsedPage - 1) * parsedPageSize)
+      .limit(parsedPageSize)
+      .exec();
 
-    if (roles === 'admin') {
-      const coverResources = await fetchResources('main/tour-cover', 'image', parsedPageSize, nextCursor as string);
-      const pdfResources = await fetchResources('main/tour-pdf', 'raw', parsedPageSize, nextCursor as string);
-      resources = [...coverResources.resources, ...pdfResources.resources];
-      nextCursorResponse = coverResources.next_cursor || pdfResources.next_cursor;
-    } else if (roles === 'seller') {
-      const coverResources = await fetchResources(`main/tour-cover/${userId}`, 'image', parsedPageSize, nextCursor as string);
-      const pdfResources = await fetchResources(`main/tour-pdf/${userId}`, 'raw', parsedPageSize, nextCursor as string);
-      resources = [...coverResources.resources, ...pdfResources.resources];
-      nextCursorResponse = coverResources.next_cursor || pdfResources.next_cursor;
-    } else {
-      return next(createHttpError(403, 'Access forbidden: Admins and Sellers only'));
-    }
-
-
-    resources.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    // Flatten images and PDFs into a single array and sort by uploadedAt
+    const resources = galleries.flatMap(gallery => [...gallery.images, ...gallery.PDF])
+      .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
 
     res.json({
       data: resources,
-      nextCursor: nextCursorResponse,
+      page: parsedPage,
+      pageSize: parsedPageSize,
+      total: resources.length, // This would be the number of resources returned in this page
     });
   } catch (error) {
     next(error);
   }
 };
+
+
+
+// export const getImages = async (req: AuthRequest, res: Response, next: NextFunction) => {
+//   try {
+//     const { userId, roles } = req; // Assuming roles and userId are attached to the request object
+//     const { pageSize = '10', nextCursor } = req.query;
+    
+//     // Handle pageSize with proper type checks
+//     const parsedPageSize = Number(pageSize);
+//     if (isNaN(parsedPageSize) || parsedPageSize < 1) {
+//       return next(createHttpError(400, 'Invalid pageSize parameter'));
+//     }
+
+//     // Fetch resources from Cloudinary
+//     const fetchResources = async (
+//       prefix: string, 
+//       resourceType: string = 'image', 
+//       maxResults: number = parsedPageSize, 
+//       nextCursor?: string
+//     ): Promise<CloudinaryApiResponse> => {
+//       return new Promise((resolve, reject) => {
+//         cloudinary.api.resources(
+//           {
+//             type: 'upload',
+//             prefix: 'main/tour-cover/',
+//             resource_type: resourceType,
+//             max_results: maxResults,
+//             next_cursor: nextCursor,
+//           },
+//           (err: unknown, result: CloudinaryApiResponse) => {
+//             if (err) {
+//               console.error('Error fetching resources:', err);
+//               return reject(err);
+//             }
+//             resolve(result);
+//           }
+//         );
+//       });
+//     };
+
+//     let resources: CloudinaryResource[] = [];
+//     let nextCursorResponse: string | null = null;
+
+//     if (roles === 'admin') {
+//       const coverResources = await fetchResources('main/tour-cover', 'image', parsedPageSize, nextCursor as string);
+//       const pdfResources = await fetchResources('main/tour-pdf', 'raw', parsedPageSize, nextCursor as string);
+//       resources = [...coverResources.resources, ...pdfResources.resources];
+//       nextCursorResponse = coverResources.next_cursor || pdfResources.next_cursor;
+//     } else if (roles === 'seller') {
+//       const coverResources = await fetchResources(`main/tour-cover/${userId}`, 'image', parsedPageSize, nextCursor as string);
+//       const pdfResources = await fetchResources(`main/tour-pdf/${userId}`, 'raw', parsedPageSize, nextCursor as string);
+//       resources = [...coverResources.resources, ...pdfResources.resources];
+//       nextCursorResponse = coverResources.next_cursor || pdfResources.next_cursor;
+//     } else {
+//       return next(createHttpError(403, 'Access forbidden: Admins and Sellers only'));
+//     }
+
+
+//     resources.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+//     res.json({
+//       data: resources,
+//       nextCursor: nextCursorResponse,
+//     });
+//   } catch (error) {
+//     next(error);
+//   }
+// };
   export const addImage = async (req: AuthRequest, res: Response, next: NextFunction) => {
     const { userId } = req.params;
     const { description, title } = req.body;
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
-
-    console.log("files ", req.files)
+    console.log("userId", userId, files)
 
     try {
       let gallery: GalleryDocument | null = await Gallery.findOne({ user: userId });
       if (!gallery) {
-        gallery = new Gallery({ user: userId, images: [], PDF: [] });
+        gallery = new Gallery({ user: userId, images: [], PDF: [], video: [] });
       }
       if (!files || (!files.imageList && !files.pdf)) {
         return res.status(400).json({ message: 'No files were uploaded' });
     }
+    const settings = await UserSettings.findOne({ user: userId });
+    if (!settings || !settings.cloudinaryCloud ||!settings.cloudinaryApiKey ||!settings.cloudinaryApiSecret) {
+        return res.status(410).json({ error: 'Missing cloudinary API key. Please add cloudinary API key to setting.' });
+    }
+    cloudinary.config({
+      cloud_name: settings.cloudinaryCloud,
+      api_key: settings.cloudinaryApiKey,
+      api_secret: settings.cloudinaryApiSecret,
+    });
+
       const uploadPromises: Promise<void>[] = [];
 
       if (files.imageList) {
         files.imageList.forEach((file) => {
-          const filePath = path.resolve(__dirname, '../../public/data/uploads/multi', file.filename);
+          const filePath = path.join(__dirname, '../../public/data/uploads/multi', file.filename);
           const uploadPromise = cloudinary.uploader.upload(filePath, {
             folder: 'main/tour-cover/',
-            resource_type: 'image',
+            resource_type: 'image', 
         }).then(result => {
-            console.log('Upload result for image:', result); 
             const newImage = {
                 _id: new mongoose.Types.ObjectId(),
                 url: result.secure_url,
@@ -194,13 +293,30 @@ export const getImages = async (req: AuthRequest, res: Response, next: NextFunct
                 title: title || file.filename,
                 description: description || '',
                 uploadedAt: new Date(),
+                tags: [result.original_filename],
+                secure_url: result.secure_url,
+                original_filename: result.original_filename,
+                display_name: result.display_name,
+                public_id: result.public_id,
+                width: result.width,
+                height: result.height,
+                format: result.format,
+                resource_type: result.resource_type,
+                created_at: new Date(result.created_at),
+                pages: result.pages,
+                bytes: result.bytes,
+                type: result.type,
+                etag: result.etag,
+                placeholder: result.placeholder,
+                asset_folder: result.asset_folder,
+                api_key: result.api_key,
             };
             if (gallery) {
               gallery.images.push(newImage);
             }
             return fs.promises.unlink(filePath);
 
-            
+
         }).catch(error => {
             console.error('Error uploading image:', error);
             throw error;
@@ -213,7 +329,7 @@ export const getImages = async (req: AuthRequest, res: Response, next: NextFunct
     // Handle PDF uploads
     if (files.pdf) {
       files.pdf.forEach((file) => {
-          const filePath = path.resolve(__dirname, '../../public/data/uploads/multi', file.filename);
+          const filePath = path.join(__dirname, '../../public/data/uploads/multi', file.filename);
 
           const uploadPromise = cloudinary.uploader.upload(filePath, {
               folder: 'main/tour-pdf/',
@@ -264,7 +380,7 @@ const imageUrls = await Promise.all(uploadPromises);
   export const updateImage = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       const { userId, imageId } = req.params;
-      const { description } = req.body;
+      const { description, title, tags } = req.body;
   
       const gallery: GalleryDocument | null = await Gallery.findOne({ user: userId });
   
@@ -280,7 +396,13 @@ const imageUrls = await Promise.all(uploadPromises);
       if (description) {
         image.description = description;
       }
-  
+      if (title) {
+        image.title = title;
+      }
+      if (tags) {
+        image.tags = tags;
+      }
+
       await gallery.save();
   
       res.json(gallery.images);
@@ -311,9 +433,22 @@ const extractPublicId = (url: string) => {
       if (roles !== 'admin' && userId !== paramUserId) {
         return next(createHttpError(403, 'Access forbidden: Admins and Sellers only'));
       }
-  
+      const AdminAsSeller = await findUserByAssetId(imageIds);
+        const settings = await UserSettings.findOne({ user: roles === 'admin' ? AdminAsSeller : userId });
+        if (!settings || !settings.cloudinaryCloud ||!settings.cloudinaryApiKey ||!settings.cloudinaryApiSecret) {
+            return res.status(410).json({ error: 'Missing cloudinary API key' });
+        }
+
+        cloudinary.config({
+          cloud_name: settings.cloudinaryCloud,
+          api_key: settings.cloudinaryApiKey,
+          api_secret: settings.cloudinaryApiSecret,
+        });
+      
+        console.log("AdminAsSeller",AdminAsSeller)
+        console.log("userId",userId, paramUserId, imageIds)
       // Find the gallery by userId
-      const gallery: GalleryDocument | null = await Gallery.findOne({ user: paramUserId });
+      const gallery: GalleryDocument | null = await Gallery.findOne({ user: roles === 'admin' ? AdminAsSeller : paramUserId });
       if (!gallery) {
         return res.status(404).json({ message: 'Gallery not found' });
       }
@@ -335,7 +470,7 @@ const extractPublicId = (url: string) => {
         } else if (image.url.includes('tour-pdf')) {
           await cloudinary.uploader.destroy(`main/tour-pdf/${publicId}`)
         }
-    }
+      }
       // Remove images from gallery
       gallery.images = gallery.images.filter(img => !imageIds.includes(img.asset_id.toString()));
       await gallery.save();

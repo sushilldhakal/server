@@ -1,12 +1,13 @@
 import express from "express";
 import {generateCompletion, applyRateLimiting} from "./generate";
+import { authenticate } from "../middlewares/authenticate";
 
 const generateRouter = express.Router();
 
 //routes
 
 
-generateRouter.post('/', applyRateLimiting, generateCompletion);
+generateRouter.post('/', authenticate,  applyRateLimiting, generateCompletion as any);
 
 
 

@@ -1,8 +1,9 @@
 import multer from 'multer';
+import path from 'path';
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, './public/data/uploads');
+    cb(null, path.join(__dirname, '../../public/data/uploads'));
   },
   filename: function (req, file, cb) {
     cb(null, `${Date.now()}_${file.originalname}`);
@@ -24,21 +25,21 @@ export const upload = multer({
   { name: 'file', maxCount: 1 }
 ]);
 
+export const uploadNone = multer().none();
 
 const multipleStorage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, './public/data/uploads/multi');
+    cb(null, path.join(__dirname, '../../public/data/uploads/multi'));
   },
   filename: function (req, file, cb) {
     cb(null, `${Date.now()}_${file.originalname}`);
   },
 });
 
-
 export const uploadMultiple = multer({
   storage: multipleStorage,
   fileFilter: function (req, file, cb) {
-    const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf'];
+    const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf', 'video/mp4'];
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
@@ -48,5 +49,6 @@ export const uploadMultiple = multer({
 }).fields([
   { name: 'pdf', maxCount: 1 },
   { name: 'imageList', maxCount: 10},
+  {name: 'video', maxCount: 1},
 ]);
 

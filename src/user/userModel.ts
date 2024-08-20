@@ -1,6 +1,8 @@
 import mongoose from "mongoose";
 import { User } from "./userTypes";
 
+
+
 const userSchema = new mongoose.Schema<User>({
     name: {
         type: String,
@@ -12,12 +14,6 @@ const userSchema = new mongoose.Schema<User>({
         type: String,
         enum: ['user', 'admin', 'company', 'subscriber'],
         default: 'user',
-        // validate: {
-        //   validator: function(v: string[]) {
-        //     return v.length > 0;
-        //   },
-        //   message: 'A user must have at least one role.'
-        // }
       },
       phone: {
         type: Number,
