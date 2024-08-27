@@ -136,8 +136,6 @@ export const getTour = async (
 // Update a tour
 export const updateTour = async (req: Request, res: Response, next: NextFunction) => {
   const { title, coverImage, description, tourStatus, price } = req.body;
-
-  console.log(req.body);
   const tourId = req.params.tourId;
   try {
     const tour = await tourModel.findOne({ _id: tourId });

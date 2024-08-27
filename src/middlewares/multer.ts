@@ -1,3 +1,4 @@
+import { NextFunction } from 'express';
 import multer from 'multer';
 import path from 'path';
 
@@ -47,8 +48,8 @@ export const uploadMultiple = multer({
     }
   },
 }).fields([
-  { name: 'pdf', maxCount: 1 },
+  { name: 'pdf', maxCount: 10 },
   { name: 'imageList', maxCount: 10},
-  {name: 'video', maxCount: 1},
+  {name: 'video', maxCount: 10},
 ]);
 

@@ -1,15 +1,22 @@
 
-import express from "express";
-import { addImage, deleteImages, getImages, getSingleImage, updateImage } from "./galleryController";
+import express, { NextFunction } from "express";
+import { addMedia, deleteMedia, getMedia, getSingleMedia, updateMedia } from "./galleryController";
 import {authenticate, isAdminOrSeller} from "../middlewares/authenticate";
-import { uploadMultiple } from "../middlewares/multer";
+import { uploadMultiple, uploadNone } from "../middlewares/multer";
 const galleryRoutes = express.Router();
+
+
+// const logRequest = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+//     console.log('Request Body:', req.body);
+//     console.log('Files:', req.files);
+//     next();
+//   };
 //routes
-galleryRoutes.get('/images', authenticate as any, isAdminOrSeller as any, getImages as any);
-galleryRoutes.get('/:publicId', getSingleImage as any);
-galleryRoutes.post('/:userId/', authenticate as any,uploadMultiple, addImage as any);
-galleryRoutes.patch('/:userId/:imageId', authenticate as any, updateImage as any);
-galleryRoutes.delete('/:userId', authenticate as any, deleteImages as any);
+galleryRoutes.get('/media', authenticate as any, isAdminOrSeller as any, getMedia as any);
+galleryRoutes.get('/:publicId', getSingleMedia as any);
+galleryRoutes.post('/:userId/', authenticate as any, uploadMultiple, addMedia as any);
+galleryRoutes.patch('/:userId/:imageId', authenticate as any, uploadNone , updateMedia as any);
+galleryRoutes.delete('/:userId', authenticate as any, deleteMedia as any);
 
 
 export default galleryRoutes;

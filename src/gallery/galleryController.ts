@@ -2,7 +2,7 @@ import { Response, NextFunction } from 'express';
 import Gallery from './galleryModel'; 
 import { GalleryDocument } from './galleryTypes';
 // import cloudinary from '../config/cloudinary';
-import { v2 as cloudinary } from "cloudinary";
+import { v2 as cloudinary, UploadApiOptions } from "cloudinary";
 import createHttpError from 'http-errors';
 import { AuthRequest } from '../middlewares/authenticate';
 import mongoose from 'mongoose';
@@ -38,47 +38,49 @@ interface CustomRequest extends Request {
   };
   query: {
     userId: string;
+    resourcesType: string;
   }
 }
 
-const findUserByAssetId = async (assetId: string) => {
-  try {
-    // Query to find the gallery document that contains the image with the given asset_id
-    const gallery = await Gallery.findOne({ 'images.asset_id': assetId }).populate('user');
 
-    // If no gallery is found, return a not found message
-    if (!gallery) {
-      return { message: 'No gallery found with this asset_id' };
-    }
 
-    // Return the user information associated with the gallery
-    return gallery.user._id.toString();
-  } catch (error: unknown) {
-    if (error instanceof Error) {
-      throw new Error(`Error finding user by asset_id: ${error.message}`);
-    } else {
-      throw new Error('An unknown error occurred while finding user by asset_id');
-    }
-  }
-};
-
-export const getSingleImage = async (req: CustomRequest, res: Response, next: NextFunction) => {
+export const getSingleMedia = async (req: CustomRequest, res: Response, next: NextFunction) => {
   try {
     const { publicId } = req.params;
-    const { userId } = req.query; // Assume userId is passed in query
+    const { userId, resourcesType } = req.query; // Assume userId is passed in query
     if (!publicId) {
       return next(createHttpError(400, 'publicId parameter is required'));
     }
-    const fetchPublicId = `main/tour-cover/${publicId}`;
+    // Determine which folder the publicId belongs to (images, pdfs, or videos)
+    let folderPrefix;
+    let mediaType: 'images' | 'PDF' | 'videos';
+    let fetchPublicId;
+    if (resourcesType === 'tour-pdf') {
+      folderPrefix = 'main/tour-pdf/';
+      mediaType = 'PDF';
+      fetchPublicId = `${folderPrefix}${publicId}.pdf`;
+    } else if (resourcesType === 'tour-cover') {
+      folderPrefix = 'main/tour-cover/';
+      mediaType = 'images';
+      fetchPublicId = `${folderPrefix}${publicId}`;
+    } else if (resourcesType === 'tour-video') {
+      folderPrefix = 'main/tour-video/';
+      mediaType = 'videos';
+      fetchPublicId = `${folderPrefix}${publicId}`;
+    } else {
+      return next(createHttpError(400, 'Invalid mediaType'));
+    }
+
     // Fetch image from MongoDB using asset_id
     const imageDetails = await Gallery.findOne(
-      { 'images.public_id': fetchPublicId },
-      { 'images.$': 1, user: 1 } // Get the image and the user who uploaded it
+      { [`${mediaType}.public_id`]: fetchPublicId },
+      { [`${mediaType}.$`]: 1, user: 1 } // Get the image and the user who uploaded it
     ).exec();
-    if (!imageDetails || !imageDetails.images || imageDetails.images.length === 0) {
+
+    if (!imageDetails || !imageDetails[mediaType] || imageDetails[mediaType].length === 0) {
       return next(createHttpError(404, 'Image not found in gallery'));
     }
-    const image = imageDetails.images[0];
+    const image = imageDetails[mediaType][0];
     const ownerId = imageDetails.user;
     // Fetch user roles from the database
     const user = await User.findById(userId);
@@ -91,33 +93,36 @@ export const getSingleImage = async (req: CustomRequest, res: Response, next: Ne
       return next(createHttpError(403, 'Access denied: You are not authorized to view this image.'));
     }
     // Fetch the uploader's (seller's) Cloudinary credentials
-    const cloudinaryResource = await fetchResourceByPublicId(fetchPublicId, ownerId.toString(), res);
+    const cloudinaryResource = await fetchResourceByPublicId(mediaType, fetchPublicId, ownerId.toString(), res);
 
     if (!cloudinaryResource) {
       return next(createHttpError(404, 'Image not found on Cloudinary'));
     }
     // Respond with image details
-    res.json([{
+    res.json({
       url: cloudinaryResource.secure_url,
+      id:image._id,
       description: image.description,
       title: image.title,
+      tags: image.tags,
       uploadedAt: image.uploadedAt,
       asset_id: image.asset_id,
       width: cloudinaryResource.width,
       height: cloudinaryResource.height,
       format: cloudinaryResource.format,
       bytes: cloudinaryResource.bytes,
+      resource_type: cloudinaryResource.resource_type,
       created_at: cloudinaryResource.created_at,
       public_id: cloudinaryResource.public_id,
       secure_url: cloudinaryResource.secure_url,
-    }]);
+    });
   } catch (error) {
     next(error);
   }
 };
 
 // Fetches Cloudinary resource using the uploader's Cloudinary credentials
-const fetchResourceByPublicId = async (publicId: string, ownerId: string, res: Response): Promise<CloudinaryResource | null> => {
+const fetchResourceByPublicId = async (mediaType: string, publicId: string, ownerId: string, res: Response): Promise<CloudinaryResource | null> => {
   const settings = await UserSettings.findOne({ user: ownerId });
   if (!settings || !settings.cloudinaryCloud || !settings.cloudinaryApiKey || !settings.cloudinaryApiSecret) {
     res.status(410).json({ error: 'Missing Cloudinary API key for the uploader.' });
@@ -134,9 +139,9 @@ const fetchResourceByPublicId = async (publicId: string, ownerId: string, res: R
   return new Promise((resolve, reject) => {
     cloudinary.api.resource(
       publicId,
+      mediaType === 'PDF' ? { resource_type: 'raw' } : mediaType === 'videos' ? { resource_type: 'video' } : undefined,
       (err: unknown, result: CloudinaryResource) => {
         if (err) {
-          console.error('Error fetching Cloudinary resource:', err);
           return reject(err);
         }
         resolve(result);
@@ -145,10 +150,13 @@ const fetchResourceByPublicId = async (publicId: string, ownerId: string, res: R
   });
 };
 
-export const getImages = async (req: AuthRequest, res: Response, next: NextFunction) => {
+export const getMedia = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { userId, roles } = req; // Assuming roles and userId are attached to the request object
-    const { pageSize = '10', page = '1' } = req.query;
+    const { pageSize = '10', page = '1', mediaType } = req.query;
+    if (!['images', 'pdfs', 'videos'].includes(mediaType as string)) {
+      return next(createHttpError(400, 'Invalid mediaType parameter'));
+    }
 
     // Handle pageSize and page with proper type checks
     const parsedPageSize = Number(pageSize);
@@ -170,15 +178,24 @@ export const getImages = async (req: AuthRequest, res: Response, next: NextFunct
       .limit(parsedPageSize)
       .exec();
 
-    // Flatten images and PDFs into a single array and sort by uploadedAt
-    const resources = galleries.flatMap(gallery => [...gallery.images, ...gallery.PDF])
-      .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+    // Separate media into different arrays
+    const images = mediaType === 'images' ? galleries.flatMap(gallery => gallery.images) : [];
+    const pdfs = mediaType === 'pdfs' ? galleries.flatMap(gallery => gallery.PDF) : [];
+    const videos = mediaType === 'videos' ? galleries.flatMap(gallery => gallery.videos) : [];
+
+    // Sort media
+    const sortedImages = images.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+    const sortedPdfs = pdfs.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+    const sortedVideos = videos.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+
 
     res.json({
-      data: resources,
-      page: parsedPage,
-      pageSize: parsedPageSize,
-      total: resources.length, // This would be the number of resources returned in this page
+      [mediaType as string]: mediaType === 'images' ? sortedImages : mediaType === 'pdfs' ? sortedPdfs : sortedVideos,
+    page: parsedPage,
+    pageSize: parsedPageSize,
+    totalImages: mediaType === 'images' ? images.length : 0,
+      totalPDFs: mediaType === 'pdfs' ? pdfs.length : 0,
+      totalVideos: mediaType === 'videos' ? videos.length : 0
     });
   } catch (error) {
     next(error);
@@ -187,89 +204,95 @@ export const getImages = async (req: AuthRequest, res: Response, next: NextFunct
 
 
 
-// export const getImages = async (req: AuthRequest, res: Response, next: NextFunction) => {
-//   try {
-//     const { userId, roles } = req; // Assuming roles and userId are attached to the request object
-//     const { pageSize = '10', nextCursor } = req.query;
-    
-//     // Handle pageSize with proper type checks
-//     const parsedPageSize = Number(pageSize);
-//     if (isNaN(parsedPageSize) || parsedPageSize < 1) {
-//       return next(createHttpError(400, 'Invalid pageSize parameter'));
-//     }
+const uploadFileToCloudinary = async (file: Express.Multer.File, folder: string, resourceType: string, title: string | undefined, description: string | undefined) => {
+  const filePath = path.join(__dirname, '../../public/data/uploads/multi', file.filename);
+  try {
+    const options: UploadApiOptions = {
+      folder,
+      resource_type: resourceType as 'image' | 'raw' | 'video', // Cast to one of the valid resource types
+    };
+    const result = await cloudinary.uploader.upload(filePath, options);
+    const fileData = {
+      _id: new mongoose.Types.ObjectId(),
+      url: result.secure_url,
+      asset_id: result.asset_id,
+      title: title || file.filename,
+      description: description || '',
+      uploadedAt: new Date(),
+      tags: [result.original_filename],
+      secure_url: result.secure_url,
+      original_filename: result.original_filename,
+      display_name: result.display_name,
+      public_id: result.public_id,
+      width: result.width,
+      height: result.height,
+      format: result.format,
+      resource_type: result.resource_type,
+      created_at: new Date(result.created_at),
+      pages: result.pages,
+      bytes: result.bytes,
+      type: result.type,
+      etag: result.etag,
+      placeholder: result.placeholder,
+      asset_folder: result.asset_folder,
+      api_key: result.api_key,
+    };
 
-//     // Fetch resources from Cloudinary
-//     const fetchResources = async (
-//       prefix: string, 
-//       resourceType: string = 'image', 
-//       maxResults: number = parsedPageSize, 
-//       nextCursor?: string
-//     ): Promise<CloudinaryApiResponse> => {
-//       return new Promise((resolve, reject) => {
-//         cloudinary.api.resources(
-//           {
-//             type: 'upload',
-//             prefix: 'main/tour-cover/',
-//             resource_type: resourceType,
-//             max_results: maxResults,
-//             next_cursor: nextCursor,
-//           },
-//           (err: unknown, result: CloudinaryApiResponse) => {
-//             if (err) {
-//               console.error('Error fetching resources:', err);
-//               return reject(err);
-//             }
-//             resolve(result);
-//           }
-//         );
-//       });
-//     };
+    await fs.promises.unlink(filePath); // Remove the file after upload
+    return fileData;
+  } catch (error) {
+    throw error;
+  }
+};
 
-//     let resources: CloudinaryResource[] = [];
-//     let nextCursorResponse: string | null = null;
+const handleUploads = async (files: any, title: string | undefined, description: string | undefined, gallery: GalleryDocument) => {
+  const uploadPromises: Promise<any>[] = [];
+  if (files.imageList) {
+    files.imageList.forEach((file: Express.Multer.File) => {
+      uploadPromises.push(uploadFileToCloudinary(file, 'main/tour-cover/', 'image', title, description).then(data => {
 
-//     if (roles === 'admin') {
-//       const coverResources = await fetchResources('main/tour-cover', 'image', parsedPageSize, nextCursor as string);
-//       const pdfResources = await fetchResources('main/tour-pdf', 'raw', parsedPageSize, nextCursor as string);
-//       resources = [...coverResources.resources, ...pdfResources.resources];
-//       nextCursorResponse = coverResources.next_cursor || pdfResources.next_cursor;
-//     } else if (roles === 'seller') {
-//       const coverResources = await fetchResources(`main/tour-cover/${userId}`, 'image', parsedPageSize, nextCursor as string);
-//       const pdfResources = await fetchResources(`main/tour-pdf/${userId}`, 'raw', parsedPageSize, nextCursor as string);
-//       resources = [...coverResources.resources, ...pdfResources.resources];
-//       nextCursorResponse = coverResources.next_cursor || pdfResources.next_cursor;
-//     } else {
-//       return next(createHttpError(403, 'Access forbidden: Admins and Sellers only'));
-//     }
+        gallery.images.push(data);
+      }));
+    });
+  }
 
+  if (files.pdf) {
+    files.pdf.forEach((file: Express.Multer.File) => {
+      uploadPromises.push(uploadFileToCloudinary(file, 'main/tour-pdf/', 'raw', title, description).then(data => {
+        gallery.PDF.push(data);
+      }));
+    });
+  }
 
-//     resources.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  if (files.video) {
+    files.video.forEach((file: Express.Multer.File) => {
+      uploadPromises.push(uploadFileToCloudinary(file, 'main/tour-video/', 'video', title, description).then(data => {
+        gallery.videos.push(data);
+      }));
+    });
+  }
 
-//     res.json({
-//       data: resources,
-//       nextCursor: nextCursorResponse,
-//     });
-//   } catch (error) {
-//     next(error);
-//   }
-// };
-  export const addImage = async (req: AuthRequest, res: Response, next: NextFunction) => {
-    const { userId } = req.params;
-    const { description, title } = req.body;
-    const files = req.files as { [fieldname: string]: Express.Multer.File[] };
-    console.log("userId", userId, files)
+  return Promise.all(uploadPromises);
+};
 
-    try {
-      let gallery: GalleryDocument | null = await Gallery.findOne({ user: userId });
-      if (!gallery) {
-        gallery = new Gallery({ user: userId, images: [], PDF: [], video: [] });
-      }
-      if (!files || (!files.imageList && !files.pdf)) {
-        return res.status(400).json({ message: 'No files were uploaded' });
+export const addMedia = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  const { userId } = req.params;
+  const { description, title } = req.body;
+  const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+
+  try {
+    let gallery = await Gallery.findOne({ user: userId });
+    if (!gallery) {
+      gallery = new Gallery({ user: userId, images: [], PDF: [], videos: [] });
     }
+
+    if (!files || (!files.imageList && !files.pdf && !files.video)) {
+      return res.status(400).json({ message: 'No files were uploaded' });
+    }
+
     const settings = await UserSettings.findOne({ user: userId });
-    if (!settings || !settings.cloudinaryCloud ||!settings.cloudinaryApiKey ||!settings.cloudinaryApiSecret) {
-        return res.status(410).json({ error: 'Missing cloudinary API key. Please add cloudinary API key to setting.' });
+    if (!settings || !settings.cloudinaryCloud || !settings.cloudinaryApiKey || !settings.cloudinaryApiSecret) {
+      return res.status(410).json({ error: 'Missing Cloudinary API key. Please add the Cloudinary API key to settings.' });
     }
     cloudinary.config({
       cloud_name: settings.cloudinaryCloud,
@@ -277,130 +300,60 @@ export const getImages = async (req: AuthRequest, res: Response, next: NextFunct
       api_secret: settings.cloudinaryApiSecret,
     });
 
-      const uploadPromises: Promise<void>[] = [];
+    // Handle file uploads
+    await handleUploads(files, title, description, gallery);
 
-      if (files.imageList) {
-        files.imageList.forEach((file) => {
-          const filePath = path.join(__dirname, '../../public/data/uploads/multi', file.filename);
-          const uploadPromise = cloudinary.uploader.upload(filePath, {
-            folder: 'main/tour-cover/',
-            resource_type: 'image', 
-        }).then(result => {
-            const newImage = {
-                _id: new mongoose.Types.ObjectId(),
-                url: result.secure_url,
-                asset_id: result.asset_id,
-                title: title || file.filename,
-                description: description || '',
-                uploadedAt: new Date(),
-                tags: [result.original_filename],
-                secure_url: result.secure_url,
-                original_filename: result.original_filename,
-                display_name: result.display_name,
-                public_id: result.public_id,
-                width: result.width,
-                height: result.height,
-                format: result.format,
-                resource_type: result.resource_type,
-                created_at: new Date(result.created_at),
-                pages: result.pages,
-                bytes: result.bytes,
-                type: result.type,
-                etag: result.etag,
-                placeholder: result.placeholder,
-                asset_folder: result.asset_folder,
-                api_key: result.api_key,
-            };
-            if (gallery) {
-              gallery.images.push(newImage);
-            }
-            return fs.promises.unlink(filePath);
+    await gallery.save(); // Save the gallery with uploaded files
 
-
-        }).catch(error => {
-            console.error('Error uploading image:', error);
-            throw error;
-        });
-
-        uploadPromises.push(uploadPromise);
-    });
-
-
-    // Handle PDF uploads
-    if (files.pdf) {
-      files.pdf.forEach((file) => {
-          const filePath = path.join(__dirname, '../../public/data/uploads/multi', file.filename);
-
-          const uploadPromise = cloudinary.uploader.upload(filePath, {
-              folder: 'main/tour-pdf/',
-              resource_type: 'raw',
-          }).then(result => {
-              console.log('Upload result for PDF:', result); 
-              const newPDF = {
-                  _id: new mongoose.Types.ObjectId(),
-                  url: result.secure_url,
-                  asset_id: result.asset_id,
-                  title: title || file.filename,
-                  description: description || '',
-                  uploadedAt: new Date(),
-              };
-
-              if (gallery) {
-                gallery.PDF.push(newPDF);
-              }
-
-              return fs.promises.unlink(filePath);
-          }).catch(error => {
-              console.error('Error uploading PDF:', error);
-              throw error;
-          });
-
-          uploadPromises.push(uploadPromise);
-      });
-  }
-}
-const imageUrls = await Promise.all(uploadPromises); 
-
-      if (gallery) {
-        await gallery.save();
-        gallery = await Gallery.findOne({ user: userId }).populate('images').exec();
-        if (gallery) {
-          res.json({ images: gallery.images,urls : imageUrls});
-        } else {
-          res.status(404).json({ message: 'Gallery not found' });
-        }
-      } else {
-        res.status(404).json({ message: 'Gallery not found' });
-      }
-    } catch (error) {
-      next(error);
+    const populatedGallery = await Gallery.findOne({ user: userId }).populate('images').exec();
+    if (populatedGallery) {
+      res.json({ images: populatedGallery.images });
+    } else {
+      res.status(404).json({ message: 'Gallery not found' });
     }
-  };
+  } catch (error) {
+    next(error);
+  }
+};
 
-  export const updateImage = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  export const updateMedia = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       const { userId, imageId } = req.params;
       const { description, title, tags } = req.body;
-  
+      const {mediaType} = req.query;
+      console.log(userId, imageId, mediaType)
       const gallery: GalleryDocument | null = await Gallery.findOne({ user: userId });
   
       if (!gallery) {
         return res.status(404).json({ message: 'Gallery not found' });
       }
   
-      const image = gallery.images.find((img) => img._id.toString() === imageId);  
-      if (!image) {
-        return res.status(404).json({ message: 'Image not found' });
-      }
+      let mediaItem;
+    if (mediaType === 'image') {
+      mediaItem = gallery.images.find((img) => img._id.toString() === imageId);
+    } else if (mediaType === 'video') {
+      mediaItem = gallery.videos.find((vid) => vid._id.toString() === imageId);
+    } else if (mediaType === 'raw') {
+      mediaItem = gallery.PDF.find((pdf) => pdf._id.toString() === imageId);
+    } else {
+      return res.status(400).json({ message: 'Invalid media type' });
+    }
+    console.log("mediaItem",mediaItem)
+
+    console.log( req.body)
+    // If the media item isn't found
+    if (!mediaItem) {
+      return res.status(404).json({ message: 'Media not found' });
+    }
   
       if (description) {
-        image.description = description;
+        mediaItem.description = description;
       }
       if (title) {
-        image.title = title;
+        mediaItem.title = title;
       }
       if (tags) {
-        image.tags = tags;
+        mediaItem.tags = tags;
       }
 
       await gallery.save();
@@ -412,70 +365,81 @@ const imageUrls = await Promise.all(uploadPromises);
   };
 
 
-  // Extract publicId from the URL
-const extractPublicId = (url: string) => {
-  const parts = url.split('/');
-  const fileName = parts.pop(); // Get the last part of the URL
-  const publicId = fileName?.split('.')[0]; // Remove the file extension
-  return publicId;
+export const deleteMedia = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { userId, roles } = req;
+    const paramUserId = req.params.userId;
+    const { imageIds, mediaType } = req.body; // Expect an array of image IDs
+
+    // Check if the user is admin or the owner of the images
+    if (roles !== 'admin' && userId !== paramUserId) {
+      return next(createHttpError(403, 'Access forbidden: Admins and Sellers only'));
+    }
+
+    // Get the actual owner of the images if the user is admin
+    const AdminAsSeller = roles === 'admin' ? await findUserByPublicId(imageIds[0], mediaType) : userId;
+    const settings = await UserSettings.findOne({ user: AdminAsSeller });
+
+    if (!settings || !settings.cloudinaryCloud || !settings.cloudinaryApiKey || !settings.cloudinaryApiSecret) {
+      return res.status(410).json({ error: 'Missing Cloudinary API key' });
+    }
+
+    cloudinary.config({
+      cloud_name: settings.cloudinaryCloud,
+      api_key: settings.cloudinaryApiKey,
+      api_secret: settings.cloudinaryApiSecret,
+    });
+
+    // Find the gallery by userId
+    const gallery = await Gallery.findOne({ user: AdminAsSeller });
+    if (!gallery) {
+      return res.status(404).json({ message: 'Gallery not found' });
+    }
+
+    // Media type validation
+    type MediaType = 'images' | 'videos' | 'PDF'; // Define valid media types
+    if (!['images', 'videos', 'PDF'].includes(mediaType)) {
+      return res.status(400).json({ message: 'Invalid media type' });
+    }
+
+    // Find the media (images, videos, or PDFs) to delete based on the `mediaType`
+    const mediaToDelete = (gallery[mediaType as MediaType] as any[]).filter((media) =>
+      imageIds.includes(media.public_id)
+    );
+    if (mediaToDelete.length === 0) {
+      return res.status(404).json({ message: 'No media found to delete' });
+    }
+
+    // Delete media from Cloudinary
+    for (const media of mediaToDelete) {
+      const publicId = media.public_id;
+      if (!publicId) {
+        return next(createHttpError(400, 'Invalid media URL'));
+      }
+      await cloudinary.uploader.destroy(publicId);
+    }
+
+    // Remove media from gallery based on the media type
+    gallery[mediaType as MediaType] = gallery[mediaType as MediaType].filter(
+      (media) => !imageIds.includes(media.public_id)
+    );
+    await gallery.save();
+
+    res.json({ message: `${mediaType.charAt(0).toUpperCase() + mediaType.slice(1)} deleted successfully`, media: gallery[mediaType as MediaType] });
+  } catch (error) {
+    next(error);
+  }
 };
 
-
-
-  export const deleteImages = async (req: AuthRequest, res: Response, next: NextFunction) => {
-    try {
-      const { userId, roles } = req;
-      const paramUserId = req.params.userId;
-      const { imageIds } = req.body; // Expect an array of image IDs
-  
-
-      // Check if the user is admin or the owner of the images
-      if (roles !== 'admin' && userId !== paramUserId) {
-        return next(createHttpError(403, 'Access forbidden: Admins and Sellers only'));
-      }
-      const AdminAsSeller = await findUserByAssetId(imageIds);
-        const settings = await UserSettings.findOne({ user: roles === 'admin' ? AdminAsSeller : userId });
-        if (!settings || !settings.cloudinaryCloud ||!settings.cloudinaryApiKey ||!settings.cloudinaryApiSecret) {
-            return res.status(410).json({ error: 'Missing cloudinary API key' });
-        }
-
-        cloudinary.config({
-          cloud_name: settings.cloudinaryCloud,
-          api_key: settings.cloudinaryApiKey,
-          api_secret: settings.cloudinaryApiSecret,
-        });
-      
-        console.log("AdminAsSeller",AdminAsSeller)
-        console.log("userId",userId, paramUserId, imageIds)
-      // Find the gallery by userId
-      const gallery: GalleryDocument | null = await Gallery.findOne({ user: roles === 'admin' ? AdminAsSeller : paramUserId });
-      if (!gallery) {
-        return res.status(404).json({ message: 'Gallery not found' });
-      }
-  
-      // Find the images to delete
-      const imagesToDelete = gallery.images.filter(img => imageIds.includes(img.asset_id));
-      if (imagesToDelete.length === 0) {
-        return res.status(404).json({ message: 'No images found to delete' });
-      }
-      // Delete images from Cloudinary
-      for (const image of imagesToDelete) {
-        const publicId = extractPublicId(image.url);
-        if (!publicId) {
-            return next(createHttpError(400, 'Invalid image URL'));
-        }
-
-        if (image.url.includes('tour-cover')) {
-          await cloudinary.uploader.destroy(`main/tour-cover/${publicId}`)
-        } else if (image.url.includes('tour-pdf')) {
-          await cloudinary.uploader.destroy(`main/tour-pdf/${publicId}`)
-        }
-      }
-      // Remove images from gallery
-      gallery.images = gallery.images.filter(img => !imageIds.includes(img.asset_id.toString()));
-      await gallery.save();
-      res.json({ message: 'Images deleted successfully', images: gallery.images });
-    } catch (error) {
-      next(error);
+// Helper function to find user by public_id
+const findUserByPublicId = async (publicId: string, mediaType: string) => {
+  try {
+    const gallery = await Gallery.findOne({ [`${mediaType}.public_id`]: publicId }).populate('user');
+    if (!gallery) {
+      return { message: 'No gallery found with this public_id' };
     }
-  };
+    return gallery.user._id.toString();
+  } catch (error) {
+    throw new Error(`Error finding user by public_id: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+};
