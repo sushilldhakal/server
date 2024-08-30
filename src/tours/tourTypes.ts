@@ -19,4 +19,5 @@ export interface Tour extends Document {
     date?: Date;
     time?: string;
   }[];
+  category: string[];
   }

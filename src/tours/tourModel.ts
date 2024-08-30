@@ -44,7 +44,6 @@ const tourSchema = new mongoose.Schema<Tour>(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
   }],
-
       coverImage: {
         type: String,
     },
@@ -57,6 +56,10 @@ const tourSchema = new mongoose.Schema<Tour>(
       default: 'Published',
   },
   itinerary: [itinerarySchema], 
+  category: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Category',  // Reference to the Category model
+  }],
 },
 { timestamps: true }
 );

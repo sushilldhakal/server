@@ -8,7 +8,7 @@ import breadcrumbsMiddleware from "./middlewares/breadcrumbsMiddleware";
 import galleryRoutes from "./gallery/galleryRoutes";
 import generateRouter from "./generate/generateRoute";
 import subscriberRouter from "./subscriber/subscriberRouter";
-
+import categoryRouter from "./user/category/categoryRoutes";
 
 const app = express();
 
@@ -41,9 +41,8 @@ app.use("/api/users", userRouter);
 app.use("/api/tours", tourRouter);
 app.use('/api/subscribers', subscriberRouter);
 app.use("/api/gallery", galleryRoutes);
-
 app.use("/api/generate", generateRouter);
-
+app.use("/api/category", categoryRouter);
 // Global error handler
 app.use(globalErrorHandler);
 
