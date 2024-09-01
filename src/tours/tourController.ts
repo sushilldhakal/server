@@ -279,118 +279,118 @@ export const getLatestTours = async (
 };
 
 // Get tours by rating
-export const getToursByRating = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    const tours = await tourModel
-      .find()
-      .sort({ rating: -1 })
-      .limit(10);
+// export const getToursByRating = async (
+//   req: Request,
+//   res: Response,
+//   next: NextFunction
+// ) => {
+//   try {
+//     const tours = await tourModel
+//       .find()
+//       .sort({ rating: -1 })
+//       .limit(10);
 
-    res.status(200).json({
-      status: 'success',
-      results: tours.length,
-      data: {
-        tours,
-      },
-    });
-  } catch (err) {
-    console.error('Get Tours by Rating Error:', err);
-    next(createHttpError(500, 'Failed to fetch tours by rating'));
-  }
-};
+//     res.status(200).json({
+//       status: 'success',
+//       results: tours.length,
+//       data: {
+//         tours,
+//       },
+//     });
+//   } catch (err) {
+//     console.error('Get Tours by Rating Error:', err);
+//     next(createHttpError(500, 'Failed to fetch tours by rating'));
+//   }
+// };
 
 // Get discounted tours
-export const getDiscountedTours = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    const tours = await tourModel.find({ discountPrice: { $exists: true, $ne: null } });
+// export const getDiscountedTours = async (
+//   req: Request,
+//   res: Response,
+//   next: NextFunction
+// ) => {
+//   try {
+//     const tours = await tourModel.find({ discountPrice: { $exists: true, $ne: null } });
 
-    res.status(200).json({
-      status: 'success',
-      results: tours.length,
-      data: {
-        tours,
-      },
-    });
-  } catch (err) {
-    console.error('Get Discounted Tours Error:', err);
-    next(createHttpError(500, 'Failed to fetch discounted tours'));
-  }
-};
+//     res.status(200).json({
+//       status: 'success',
+//       results: tours.length,
+//       data: {
+//         tours,
+//       },
+//     });
+//   } catch (err) {
+//     console.error('Get Discounted Tours Error:', err);
+//     next(createHttpError(500, 'Failed to fetch discounted tours'));
+//   }
+// };
 
 // Search for tours
-export const searchTours = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    const query: Record<string, any> = {};
+// export const searchTours = async (
+//   req: Request,
+//   res: Response,
+//   next: NextFunction
+// ) => {
+//   try {
+//     const query: Record<string, any> = {};
 
-    if (req.query.name) {
-      query.title = { $regex: req.query.name as string, $options: 'i' };
-    }
+//     if (req.query.name) {
+//       query.title = { $regex: req.query.name as string, $options: 'i' };
+//     }
 
-    if (req.query.destinations) {
-      query['locations.city'] = { $in: (req.query.destinations as string).split(',') };
-    }
+//     if (req.query.destinations) {
+//       query['locations.city'] = { $in: (req.query.destinations as string).split(',') };
+//     }
 
-    if (req.query.type) {
-      query.type = req.query.type as string;
-    }
+//     if (req.query.type) {
+//       query.type = req.query.type as string;
+//     }
 
-    if (req.query.minDuration || req.query.maxDuration) {
-      query.duration = {};
-      if (req.query.minDuration) {
-        query.duration.$gte = parseInt(req.query.minDuration as string, 10);
-      }
-      if (req.query.maxDuration) {
-        query.duration.$lte = parseInt(req.query.maxDuration as string, 10);
-      }
-    }
+//     if (req.query.minDuration || req.query.maxDuration) {
+//       query.duration = {};
+//       if (req.query.minDuration) {
+//         query.duration.$gte = parseInt(req.query.minDuration as string, 10);
+//       }
+//       if (req.query.maxDuration) {
+//         query.duration.$lte = parseInt(req.query.maxDuration as string, 10);
+//       }
+//     }
 
-    if (req.query.startDate || req.query.endDate) {
-      query['dates.date'] = {};
-      if (req.query.startDate) {
-        query['dates.date'].$gte = new Date(req.query.startDate as string);
-      }
-      if (req.query.endDate) {
-        query['dates.date'].$lte = new Date(req.query.endDate as string);
-      }
-    }
+//     if (req.query.startDate || req.query.endDate) {
+//       query['dates.date'] = {};
+//       if (req.query.startDate) {
+//         query['dates.date'].$gte = new Date(req.query.startDate as string);
+//       }
+//       if (req.query.endDate) {
+//         query['dates.date'].$lte = new Date(req.query.endDate as string);
+//       }
+//     }
 
-    if (req.query.minPrice || req.query.maxPrice) {
-      query['dates.price'] = {};
-      if (req.query.minPrice) {
-        query['dates.price'].$gte = parseInt(req.query.minPrice as string, 10);
-      }
-      if (req.query.maxPrice) {
-        query['dates.price'].$lte = parseInt(req.query.maxPrice as string, 10);
-      }
-    }
+//     if (req.query.minPrice || req.query.maxPrice) {
+//       query['dates.price'] = {};
+//       if (req.query.minPrice) {
+//         query['dates.price'].$gte = parseInt(req.query.minPrice as string, 10);
+//       }
+//       if (req.query.maxPrice) {
+//         query['dates.price'].$lte = parseInt(req.query.maxPrice as string, 10);
+//       }
+//     }
 
 
-    console.log('Constructed Query:', query); // Logging the query object
+//     console.log('Constructed Query:', query); // Logging the query object
 
-    const tours = await tourModel.find(query);
-    res.status(200).json({
-      status: 'success',
-      results: tours.length,
-      data: {
-        tours,
-      },
-    });
-  } catch (err) {
-    console.error('Search Tours Error:', err);
-    next(createHttpError(500, 'Failed to search tours'));
-  }
-};
+//     const tours = await tourModel.find(query);
+//     res.status(200).json({
+//       status: 'success',
+//       results: tours.length,
+//       data: {
+//         tours,
+//       },
+//     });
+//   } catch (err) {
+//     console.error('Search Tours Error:', err);
+//     next(createHttpError(500, 'Failed to search tours'));
+//   }
+// };
 
 
