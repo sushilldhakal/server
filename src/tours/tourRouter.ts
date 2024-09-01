@@ -1,6 +1,6 @@
 import path from "node:path";
 import express from 'express';
-import {createTour, deleteTour, getAllTours, getDiscountedTours, getLatestTours, getTour, getToursByRating, searchTours, updateTour} from './tourController';
+import {createTour, deleteTour, getAllTours, getLatestTours, getTour, updateTour} from './tourController';
 import multer from "multer";
 import {authenticate} from "../middlewares/authenticate";
 
@@ -40,13 +40,13 @@ tourRouter.patch(
 );
 
 // Routes for '/tours'
-tourRouter.get('/search', searchTours); // Ensure this route is defined correctly
+//tourRouter.get('/search', searchTours); // Ensure this route is defined correctly
 
 tourRouter.get('/latest', getLatestTours);
 
-tourRouter.get('/rating', getToursByRating);
+// tourRouter.get('/rating', getToursByRating);
 
-tourRouter.get('/discounted', getDiscountedTours);
+// tourRouter.get('/discounted', getDiscountedTours);
 
 
 tourRouter.get("/", getAllTours);
