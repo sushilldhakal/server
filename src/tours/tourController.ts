@@ -13,62 +13,22 @@ interface Files {
 }
 
 export const createTour = async (req: Request, res: Response, next: NextFunction) => {
-  const { title, coverImage, code, description,tourStatus, price, itinerary } = req.body;
-
-  const files = req.files as { [fieldname: string]: Express.Multer.File[] };
-  // 'application/pdf'
+  const { title, coverImage, code, description,tourStatus, price, file, outline, itinerary } = req.body;
+  console.log("itinerary",itinerary)
   try {
-    // let coverImageSecureUrl = '';
-    let fileSecureUrl = '';
-    // if(files.coverImage && files.coverImage[0]){
-    //   const coverImageMimeType = files.coverImage[0].mimetype.split("/").at(-1);
-    //   const fileName = files.coverImage[0].filename;
-    //   const filePath = path.resolve(
-    //       __dirname,
-    //       "../../public/data/uploads",
-    //       fileName
-    //   );
-    //   const uploadResult = await cloudinary.uploader.upload(filePath, {
-    //       filename_override: fileName,
-    //       folder: "main/tour-cover",
-    //       format: coverImageMimeType,
-    //   });
-    //   coverImageSecureUrl = uploadResult.secure_url;
-    //   await fs.promises.unlink(filePath);
-    // }
-    if( files.file && files.file[0]){
-      const tourFileName = files.file[0].filename;
-      const tourFilePath = path.resolve(
-          __dirname,
-          "../../public/data/uploads",
-          tourFileName
-      );
-      const tourFileUploadResult = await cloudinary.uploader.upload(
-        tourFilePath,
-          {
-              resource_type: "raw",
-              filename_override: tourFileName,
-              folder: "main/tour-pdf",
-              format: "pdf",
-          }
-      );
-      fileSecureUrl = tourFileUploadResult.secure_url;
-      await fs.promises.unlink(tourFilePath);
-    }
       const _req = req as AuthRequest;
-
-      const itinerary: { title: string, description: string, date: Date, time: string }[] = [];
-    // Check if itinerary is provided and parse it
-    if (req.body.itinerary) {
-      for (let i = 0; req.body.itinerary[i] !== undefined; i++) {
-        itinerary.push({
-          title: req.body.itinerary[i].title,
-          description: req.body.itinerary[i].description,
-          date: new Date(req.body.itinerary[i].date),
-          time: req.body.itinerary[i].time
-        });
-      }
+      const parsedItinerary: { day: string, title: string, description: string, date: Date }[] = [];
+   // Check if itinerary is provided and parse it
+   if (Array.isArray(req.body.itinerary)) {
+    for (const item of req.body.itinerary) {
+      parsedItinerary.push({
+        day: item.day || '',
+        title: item.title || '',
+        description: item.description || '',
+        date: item.date ? new Date(item.date) : new Date, // Ensure date is handled correctly
+      });
     }
+  }
     
       const newTour = await tourModel.create({
           title,
@@ -76,10 +36,11 @@ export const createTour = async (req: Request, res: Response, next: NextFunction
           code,
           tourStatus,
           price,
+          outline,
           author: _req.userId,
           coverImage,
-          file: fileSecureUrl,
-          itinerary
+          file,
+          itinerary: parsedItinerary,
       });
       res.status(201).json({ id: newTour._id, message: newTour });
   } catch (err) {
@@ -135,7 +96,7 @@ export const getTour = async (
 
 // Update a tour
 export const updateTour = async (req: Request, res: Response, next: NextFunction) => {
-  const { title, coverImage, description, tourStatus, price } = req.body;
+  const { title, coverImage, file,  description, tourStatus, price,outline, itinerary } = req.body;
   const tourId = req.params.tourId;
   try {
     const tour = await tourModel.findOne({ _id: tourId });
@@ -148,54 +109,18 @@ export const updateTour = async (req: Request, res: Response, next: NextFunction
       return next(createHttpError(403, "You cannot update others' tour."));
     }
 
-    // Initialize variables for file URLs
-    // let completeCoverImage = tour.coverImage;
-    let completeFileName = tour.file;
-    // Check if image field exists
-    const files = req.files as Files;
-    // if(files){
-      // if (files.coverImage && files.coverImage.length > 0) {
-      //   try {
-      //     const filename = files.coverImage[0].filename;
-      //     const coverMimeType = files.coverImage[0].mimetype.split("/").pop();
-      //     const filePath = path.resolve(__dirname, "../../public/data/uploads/" + filename);
-  
-      //     const uploadResult = await cloudinary.uploader.upload(filePath, {
-      //       filename_override: filename,
-      //       folder: "main/tour-cover",
-      //       format: coverMimeType,
-      //     });
-  
-      //     completeCoverImage = uploadResult.secure_url;
-      //     await fs.promises.unlink(filePath);
-      //   } catch (err) {
-      //     console.error('Error uploading cover image:', err);
-      //     return next(createHttpError(500, "Error uploading cover image"));
-      //   }
-      // }
-  
-      // Handle tour file if present
-      if (files.file && files.file.length > 0) {
-        try {
-          const tourFilePath = path.resolve(__dirname, "../../public/data/uploads/" + files.file[0].filename);
-  
-          const uploadResultPdf = await cloudinary.uploader.upload(tourFilePath, {
-            resource_type: "raw",
-            filename_override: files.file[0].filename,
-            folder: "main/tour-pdf",
-            format: "pdf",
-          });
-  
-          completeFileName = uploadResultPdf.secure_url;
-          await fs.promises.unlink(tourFilePath);
-        } catch (err) {
-          console.error('Error uploading tour file:', err);
-          return next(createHttpError(500, "Error uploading tour file"));
-        }
-      }
-  
-    // }
-    
+    const parsedItinerary: { day: string, title: string, description: string, date: Date }[] = [];
+    // Check if itinerary is provided and parse it
+    if (Array.isArray(req.body.itinerary)) {
+     for (const item of req.body.itinerary) {
+       parsedItinerary.push({
+         day: item.day || '',
+         title: item.title || '',
+         description: item.description || '',
+         date: item.date ? new Date(item.date) : new Date, // Ensure date is handled correctly
+       });
+     }
+   }
 
      // Update tour with provided fields or keep existing ones
      const updatedTour = await tourModel.findByIdAndUpdate(
@@ -205,8 +130,10 @@ export const updateTour = async (req: Request, res: Response, next: NextFunction
         description: description || tour.description,
         tourStatus: tourStatus || tour.tourStatus,
         coverImage:  coverImage || tour.coverImage,
-        file: completeFileName || tour.file,
+        file: file || tour.file,
         price: price || tour.price,
+        outline: outline || tour.outline,
+        itinerary: parsedItinerary || tour.itinerary,
       },
       { new: true }
     );

@@ -5,6 +5,10 @@ import {Tour} from "./tourTypes";
 
 
 const itinerarySchema = new mongoose.Schema({
+  day: {
+    type: String,
+    required: true,
+  },
   title: {
     type: String,
     required: true,
@@ -17,10 +21,7 @@ const itinerarySchema = new mongoose.Schema({
     type: Date,
     required: true,
   },
-  time: {
-    type: String,
-    required: true,
-  },
+  
 }, { _id: false });
 
 const tourSchema = new mongoose.Schema<Tour>(
@@ -54,6 +55,9 @@ const tourSchema = new mongoose.Schema<Tour>(
       type: String,
       enum: ['Draft', 'Published', 'Archived', 'Expired'],
       default: 'Published',
+  },
+  outline: {
+    type: String,
   },
   itinerary: [itinerarySchema], 
   category: [{

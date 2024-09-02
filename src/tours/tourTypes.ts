@@ -13,11 +13,12 @@ export interface Tour extends Document {
     createdAt: Date;
   updatedAt: Date;
   tourStatus: string;
+  outline: string;
   itinerary:{
+    day?: string;
     title: string;
     description: string;
     date?: Date;
-    time?: string;
   }[];
   category: string[];
   }
