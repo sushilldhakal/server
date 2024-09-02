@@ -20,5 +20,9 @@ export interface Tour extends Document {
     description: string;
     date?: Date;
   }[];
-  category: string[];
-  }
+  category: {
+    id: mongoose.Types.ObjectId;
+    categoryName: string;
+  }[]
+  };
+  

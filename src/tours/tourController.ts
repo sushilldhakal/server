@@ -5,7 +5,8 @@ import createHttpError from 'http-errors';
 import tourModel from './tourModel';
 import cloudinary from '../config/cloudinary';
 import { AuthRequest } from "../middlewares/authenticate";
-
+import mongoose from 'mongoose';
+import Category from '../user/category/categoryModel';
 
 interface Files {
   coverImage?: Express.Multer.File[];
@@ -13,22 +14,35 @@ interface Files {
 }
 
 export const createTour = async (req: Request, res: Response, next: NextFunction) => {
-  const { title, coverImage, code, description,tourStatus, price, file, outline, itinerary } = req.body;
-  console.log("itinerary",itinerary)
+  const { title, coverImage, code, description,tourStatus,category,  price, file, outline, itinerary } = req.body;
+  console.log("category",category)
   try {
       const _req = req as AuthRequest;
       const parsedItinerary: { day: string, title: string, description: string, date: Date }[] = [];
    // Check if itinerary is provided and parse it
-   if (Array.isArray(req.body.itinerary)) {
-    for (const item of req.body.itinerary) {
+   if (Array.isArray(itinerary)) {
+    for (const item of itinerary) {
       parsedItinerary.push({
         day: item.day || '',
         title: item.title || '',
         description: item.description || '',
-        date: item.date ? new Date(item.date) : new Date, // Ensure date is handled correctly
+        date: item.date ? new Date(item.date) : new Date(), // Ensure date is handled correctly
       });
     }
   }
+ // Initialize an array to store both categoryId and categoryName
+ const categories: { categoryId: mongoose.Types.ObjectId, categoryName: string }[] = [];
+
+ if (Array.isArray(category)) {
+   for (const item of category) {
+     categories.push({
+       categoryId: new mongoose.Types.ObjectId(item.value),  // Added 'new' keyword
+       categoryName: item.label
+     });
+   }
+ }
+
+ console.log("categoryIds", categories)
     
       const newTour = await tourModel.create({
           title,
@@ -40,6 +54,7 @@ export const createTour = async (req: Request, res: Response, next: NextFunction
           author: _req.userId,
           coverImage,
           file,
+          category: categories,
           itinerary: parsedItinerary,
       });
       res.status(201).json({ id: newTour._id, message: newTour });
@@ -48,7 +63,6 @@ export const createTour = async (req: Request, res: Response, next: NextFunction
       return next(createHttpError(500, "Error while uploading the files."));
   }
 };
-
 // Get all tours
 export const getAllTours = async (
   req: Request,
@@ -96,7 +110,7 @@ export const getTour = async (
 
 // Update a tour
 export const updateTour = async (req: Request, res: Response, next: NextFunction) => {
-  const { title, coverImage, file,  description, tourStatus, price,outline, itinerary } = req.body;
+  const { title, coverImage, file,  description,category, tourStatus, price,outline, itinerary } = req.body;
   const tourId = req.params.tourId;
   try {
     const tour = await tourModel.findOne({ _id: tourId });
@@ -111,8 +125,8 @@ export const updateTour = async (req: Request, res: Response, next: NextFunction
 
     const parsedItinerary: { day: string, title: string, description: string, date: Date }[] = [];
     // Check if itinerary is provided and parse it
-    if (Array.isArray(req.body.itinerary)) {
-     for (const item of req.body.itinerary) {
+    if (Array.isArray(itinerary)) {
+     for (const item of itinerary) {
        parsedItinerary.push({
          day: item.day || '',
          title: item.title || '',
@@ -122,6 +136,17 @@ export const updateTour = async (req: Request, res: Response, next: NextFunction
      }
    }
 
+    // Update categories
+    const updatedCategories: { categoryName: string, categoryId: string }[] = [];
+    if (Array.isArray(category)) {
+      for (const item of category) {
+        // Assuming item.value is the ID and item.label is the name
+        updatedCategories.push({
+          categoryName: item.label,
+          categoryId: item.value,
+        });
+      }
+    }
      // Update tour with provided fields or keep existing ones
      const updatedTour = await tourModel.findByIdAndUpdate(
       tourId,
@@ -132,6 +157,7 @@ export const updateTour = async (req: Request, res: Response, next: NextFunction
         coverImage:  coverImage || tour.coverImage,
         file: file || tour.file,
         price: price || tour.price,
+        category: updatedCategories.length > 0 ? updatedCategories : tour.category,  // Update category or keep the existing one
         outline: outline || tour.outline,
         itinerary: parsedItinerary || tour.itinerary,
       },
@@ -149,7 +175,6 @@ export const updateTour = async (req: Request, res: Response, next: NextFunction
     next(createHttpError(500, "Error while updating the tour"));
   }
 };
-
 // Delete a tour
 export const deleteTour = async (req: Request, res: Response, next: NextFunction) => {
   const tourId = req.params.tourId;

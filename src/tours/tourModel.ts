@@ -61,8 +61,15 @@ const tourSchema = new mongoose.Schema<Tour>(
   },
   itinerary: [itinerarySchema], 
   category: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Category',  // Reference to the Category model
+    categoryId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Category',  // Reference to the Category model
+      required: true,
+    },
+    categoryName: {
+      type: String,     // Name of the category to store alongside the reference
+      required: true,
+    }
   }],
 },
 { timestamps: true }
