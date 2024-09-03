@@ -1,58 +1,37 @@
-import path from "node:path";
 import express from 'express';
-import {createTour, deleteTour, getAllTours, getLatestTours, getTour, updateTour} from './tourController';
-import multer from "multer";
-import {authenticate} from "../middlewares/authenticate";
+import { createTour, deleteTour, getAllTours, getLatestTours, getTour, searchTours, updateTour } from './tourController';
+import { authenticate } from "../middlewares/authenticate";
 import { uploadNone } from "../middlewares/multer";
-
-
+import mongoose from 'mongoose';
 
 const tourRouter = express.Router();
 
+// Define specific routes before more generic ones
 
-tourRouter.post(
-  "/",
-  authenticate, uploadNone,
-  createTour
-);
+tourRouter.get("/",  (req, res, next) => {
+  console.log('Query all:', req.query);
+  getAllTours(req, res, next);
+});
 
-tourRouter.patch(
-  "/:tourId",
-  authenticate,
- uploadNone,
-  updateTour
-);
-
-// Routes for '/tours'
-//tourRouter.get('/search', searchTours); // Ensure this route is defined correctly
-
-tourRouter.get('/latest', getLatestTours);
-
-// tourRouter.get('/rating', getToursByRating);
-
-// tourRouter.get('/discounted', getDiscountedTours);
-
-
-tourRouter.get("/", getAllTours);
-// tourRouter.get("/:tourId", getTour);
-
-tourRouter.get("/:tourId", (req, res, next) => {
+tourRouter.get('/:tourId', (req, res, next) => {
   const { tourId } = req.params;
-
-  // Check if the tourId matches any static route names
+  console.log("tour id:", tourId);
+  if (!mongoose.Types.ObjectId.isValid(tourId)) {
+   console.log("Invalid Tour ID");
+  }
+  // Check if tourId is a static route name and handle it
   const staticRoutes = ["latest", "search", "rating", "discounted"];
   if (staticRoutes.includes(tourId)) {
-    return next(); // Pass control to the next matching route
+    // Let express handle static routes or handle as needed
+    console.log("Invalid Tour ID");
+    return res.status(404).send('Not Found'); // Send appropriate response if needed
   }
-
-  // Otherwise, proceed to get the tour by ID
+  // Handle specific tour if not a static route
   getTour(req, res, next);
 });
 
-// DELETE /api/tours/:tourId
+tourRouter.post("/", authenticate, uploadNone, createTour);
+tourRouter.patch("/:tourId", authenticate, uploadNone, updateTour);
 tourRouter.delete("/:tourId", authenticate, deleteTour);
-
-
-
 
 export default tourRouter;

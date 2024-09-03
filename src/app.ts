@@ -2,6 +2,7 @@ import express from "express";
 import globalErrorHandler from "./middlewares/globalErrorHandler";
 import userRouter from "./user/userRouter";
 import tourRouter from "./tours/tourRouter";
+import tourSearchRouter from "./tours/tourSearchRouter";
 import cors from "cors";
 import { config } from "./config/config";
 import breadcrumbsMiddleware from "./middlewares/breadcrumbsMiddleware";
@@ -38,7 +39,10 @@ app.get("/", (req, res) => {
 });
 
 app.use("/api/users", userRouter);
-app.use("/api/tours", tourRouter);
+app.use("/api/tours",tourRouter);
+
+app.use("/api/tour/search",tourSearchRouter);
+
 app.use('/api/subscribers', subscriberRouter);
 app.use("/api/gallery", galleryRoutes);
 app.use("/api/generate", generateRouter);

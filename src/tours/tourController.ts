@@ -1,21 +1,14 @@
-import path from 'node:path';
-import fs from 'node:fs';
 import { Request, Response, NextFunction } from 'express';
 import createHttpError from 'http-errors';
 import tourModel from './tourModel';
 import cloudinary from '../config/cloudinary';
 import { AuthRequest } from "../middlewares/authenticate";
 import mongoose from 'mongoose';
-import Category from '../user/category/categoryModel';
 
-interface Files {
-  coverImage?: Express.Multer.File[];
-  file?: Express.Multer.File[];
-}
 
 export const createTour = async (req: Request, res: Response, next: NextFunction) => {
   const { title, coverImage, code, description,tourStatus,category,  price, file, outline, itinerary } = req.body;
-  console.log("category",category)
+  console.log("createTour", req.body)
   try {
       const _req = req as AuthRequest;
       const parsedItinerary: { day: string, title: string, description: string, date: Date }[] = [];
@@ -69,6 +62,7 @@ export const getAllTours = async (
   res: Response,
   next: NextFunction
 ) => {
+  console.log("getAllTours")
   try {
     const tours = await tourModel.find().populate("author", "name");
     res.status(200).json({ tours });
@@ -84,6 +78,11 @@ export const getTour = async (
   next: NextFunction
 ) => {
   const tourId = req.params.tourId;
+  console.log("getTour", tourId)
+  if (!mongoose.Types.ObjectId.isValid(tourId)) {
+    return res.status(400).json({ message: 'Invalid Tour ID' });
+  }
+
   try {
       const tour = await tourModel
           .findOne({ _id: tourId })
@@ -112,6 +111,7 @@ export const getTour = async (
 export const updateTour = async (req: Request, res: Response, next: NextFunction) => {
   const { title, coverImage, file,  description,category, tourStatus, price,outline, itinerary } = req.body;
   const tourId = req.params.tourId;
+  console.log("updateTour", tourId)
   try {
     const tour = await tourModel.findOne({ _id: tourId });
     if (!tour) {
@@ -178,6 +178,7 @@ export const updateTour = async (req: Request, res: Response, next: NextFunction
 // Delete a tour
 export const deleteTour = async (req: Request, res: Response, next: NextFunction) => {
   const tourId = req.params.tourId;
+  console.log("deleteTour", tourId)
   try {
     const tour = await tourModel.findById(tourId);
     if (!tour) {
@@ -208,25 +209,18 @@ export const deleteTour = async (req: Request, res: Response, next: NextFunction
 };
 
 // Get latest created tours
-export const getLatestTours = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
+export const getLatestTours = async (req: Request, res: Response, next: NextFunction) => {
+  // Add logging to handlers
   try {
-    const tours = await tourModel
-      .find()
-      .sort({ createdAt: -1 })
-      .limit(10);
-
-    res.status(200).json({
-      status: 'success',
-      results: tours.length,
-      tours,
-    });
+      const tours = await tourModel.find().sort({ createdAt: -1 }).limit(3).exec();
+      res.status(200).json({
+          status: 'success',
+          results: tours.length,
+          tours,
+      });
   } catch (err) {
-    console.error('Get Latest Tours Error:', err);
-    next(createHttpError(500, 'Failed to fetch latest tours'));
+      console.error('Get Latest Tours Error:', err);
+      next(createHttpError(500, 'Failed to fetch latest tours'));
   }
 };
 
@@ -278,71 +272,71 @@ export const getLatestTours = async (
 // };
 
 // Search for tours
-// export const searchTours = async (
-//   req: Request,
-//   res: Response,
-//   next: NextFunction
-// ) => {
-//   try {
-//     const query: Record<string, any> = {};
+export const searchTours = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const query: Record<string, any> = {};
+    console.log("query",req.query)
+    if (req.query.name) {
+      query.title = { $regex: req.query.name as string, $options: 'i' };
+    }
 
-//     if (req.query.name) {
-//       query.title = { $regex: req.query.name as string, $options: 'i' };
-//     }
+    if (req.query.destinations) {
+      query['locations.city'] = { $in: (req.query.destinations as string).split(',') };
+    }
 
-//     if (req.query.destinations) {
-//       query['locations.city'] = { $in: (req.query.destinations as string).split(',') };
-//     }
+    if (req.query.category) {
+      query.category = req.query.category as string;
+    }
 
-//     if (req.query.type) {
-//       query.type = req.query.type as string;
-//     }
+    // if (req.query.minDuration || req.query.maxDuration) {
+    //   query.duration = {};
+    //   if (req.query.minDuration) {
+    //     query.duration.$gte = parseInt(req.query.minDuration as string, 10);
+    //   }
+    //   if (req.query.maxDuration) {
+    //     query.duration.$lte = parseInt(req.query.maxDuration as string, 10);
+    //   }
+    // }
 
-//     if (req.query.minDuration || req.query.maxDuration) {
-//       query.duration = {};
-//       if (req.query.minDuration) {
-//         query.duration.$gte = parseInt(req.query.minDuration as string, 10);
-//       }
-//       if (req.query.maxDuration) {
-//         query.duration.$lte = parseInt(req.query.maxDuration as string, 10);
-//       }
-//     }
+    // if (req.query.startDate || req.query.endDate) {
+    //   query['dates.date'] = {};
+    //   if (req.query.startDate) {
+    //     query['dates.date'].$gte = new Date(req.query.startDate as string);
+    //   }
+    //   if (req.query.endDate) {
+    //     query['dates.date'].$lte = new Date(req.query.endDate as string);
+    //   }
+    // }
 
-//     if (req.query.startDate || req.query.endDate) {
-//       query['dates.date'] = {};
-//       if (req.query.startDate) {
-//         query['dates.date'].$gte = new Date(req.query.startDate as string);
-//       }
-//       if (req.query.endDate) {
-//         query['dates.date'].$lte = new Date(req.query.endDate as string);
-//       }
-//     }
-
-//     if (req.query.minPrice || req.query.maxPrice) {
-//       query['dates.price'] = {};
-//       if (req.query.minPrice) {
-//         query['dates.price'].$gte = parseInt(req.query.minPrice as string, 10);
-//       }
-//       if (req.query.maxPrice) {
-//         query['dates.price'].$lte = parseInt(req.query.maxPrice as string, 10);
-//       }
-//     }
+    // if (req.query.minPrice || req.query.maxPrice) {
+    //   query['dates.price'] = {};
+    //   if (req.query.minPrice) {
+    //     query['dates.price'].$gte = parseInt(req.query.minPrice as string, 10);
+    //   }
+    //   if (req.query.maxPrice) {
+    //     query['dates.price'].$lte = parseInt(req.query.maxPrice as string, 10);
+    //   }
+    // }
 
 
-//     console.log('Constructed Query:', query); // Logging the query object
+    console.log('Constructed Query:', query); // Logging the query object
 
-//     const tours = await tourModel.find(query);
-//     res.status(200).json({
-//       status: 'success',
-//       results: tours.length,
-//       data: {
-//         tours,
-//       },
-//     });
-//   } catch (err) {
-//     console.error('Search Tours Error:', err);
-//     next(createHttpError(500, 'Failed to search tours'));
-//   }
-// };
+    const tours = await tourModel.find(query);
+    res.status(200).json({
+      status: 'success',
+      results: tours.length,
+      data: {
+        tours,
+      },
+    });
+  } catch (err) {
+    console.error('Search Tours Error:', err);
+    next(createHttpError(500, 'Failed to search tours'));
+  }
+};
 
 
