@@ -289,39 +289,16 @@ export const searchTours = async (
     }
 
     if (req.query.category) {
-      query.category = req.query.category as string;
+      const categoryQuery = req.query.category as string;
+
+      // Check if it's an ObjectId (categoryId)
+      if (mongoose.Types.ObjectId.isValid(categoryQuery)) {
+        query['category.categoryId'] = categoryQuery;
+      } else {
+        // Otherwise, treat it as a category name search
+        query['category.categoryName'] = { $regex: categoryQuery, $options: 'i' };
+      }
     }
-
-    // if (req.query.minDuration || req.query.maxDuration) {
-    //   query.duration = {};
-    //   if (req.query.minDuration) {
-    //     query.duration.$gte = parseInt(req.query.minDuration as string, 10);
-    //   }
-    //   if (req.query.maxDuration) {
-    //     query.duration.$lte = parseInt(req.query.maxDuration as string, 10);
-    //   }
-    // }
-
-    // if (req.query.startDate || req.query.endDate) {
-    //   query['dates.date'] = {};
-    //   if (req.query.startDate) {
-    //     query['dates.date'].$gte = new Date(req.query.startDate as string);
-    //   }
-    //   if (req.query.endDate) {
-    //     query['dates.date'].$lte = new Date(req.query.endDate as string);
-    //   }
-    // }
-
-    // if (req.query.minPrice || req.query.maxPrice) {
-    //   query['dates.price'] = {};
-    //   if (req.query.minPrice) {
-    //     query['dates.price'].$gte = parseInt(req.query.minPrice as string, 10);
-    //   }
-    //   if (req.query.maxPrice) {
-    //     query['dates.price'].$lte = parseInt(req.query.maxPrice as string, 10);
-    //   }
-    // }
-
 
     console.log('Constructed Query:', query); // Logging the query object
 
