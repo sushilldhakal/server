@@ -6,6 +6,7 @@ interface UserSettings extends Document {
     cloudinaryApiKey?: string;
     cloudinaryApiSecret?: string;
     openaiApiKey?: string;
+    googleApiKey?:string;
 }
 
 const userSettingsSchema = new mongoose.Schema<UserSettings>({
@@ -19,6 +20,7 @@ const userSettingsSchema = new mongoose.Schema<UserSettings>({
     cloudinaryApiKey: { type: String, default: '' },
     cloudinaryApiSecret: { type: String, default: '' },
     openaiApiKey: { type: String, default: '' },
+    googleApiKey: { type: String, default: '' },
 }, {
     timestamps: true,
 });

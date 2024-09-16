@@ -5,7 +5,7 @@ import UserSettings from './userSettingModel';
 export const addOrUpdateSettings = async (req: AuthRequest, res: Response, next: NextFunction) => {
 
   const { userId } = req.params;
-  const {  CLOUDINARY_CLOUD, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET, OPENAI_API_KEY } = req.body;
+  const {  CLOUDINARY_CLOUD, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET, OPENAI_API_KEY, GOOGLE_API_KEY } = req.body;
     try {
         let settings = await UserSettings.findOne({ user: userId });
 
@@ -17,12 +17,14 @@ export const addOrUpdateSettings = async (req: AuthRequest, res: Response, next:
               cloudinaryApiKey: CLOUDINARY_API_KEY,
               cloudinaryApiSecret: CLOUDINARY_API_SECRET,
               openaiApiKey: OPENAI_API_KEY,
+              googleApiKey: GOOGLE_API_KEY,
             });
         } else {
           if (CLOUDINARY_CLOUD !== undefined) settings.cloudinaryCloud = CLOUDINARY_CLOUD;
           if (CLOUDINARY_API_KEY !== undefined) settings.cloudinaryApiKey = CLOUDINARY_API_KEY;
           if (CLOUDINARY_API_SECRET !== undefined) settings.cloudinaryApiSecret = CLOUDINARY_API_SECRET;
           if (OPENAI_API_KEY !== undefined) settings.openaiApiKey = OPENAI_API_KEY;
+          if (GOOGLE_API_KEY !== undefined) settings.googleApiKey = GOOGLE_API_KEY;
         }
 
         await settings.save();

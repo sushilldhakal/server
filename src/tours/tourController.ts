@@ -4,10 +4,29 @@ import tourModel from './tourModel';
 import cloudinary from '../config/cloudinary';
 import { AuthRequest } from "../middlewares/authenticate";
 import mongoose from 'mongoose';
+import { FactValue } from './tourTypes';
 
 
 export const createTour = async (req: Request, res: Response, next: NextFunction) => {
-  const { title, coverImage, code, description,tourStatus,category,  price, file, outline, itinerary } = req.body;
+  const {  title,
+    coverImage,
+    code,
+    description,
+    tourStatus,
+    category,
+    price,
+    file,
+    outline,
+    itinerary,
+    dates,
+    facts,
+    faqs,
+    gallery,
+    map,
+    include,
+    exclude,
+    location,
+  enquiry} = req.body;
   console.log("createTour", req.body)
   try {
       const _req = req as AuthRequest;
@@ -24,18 +43,38 @@ export const createTour = async (req: Request, res: Response, next: NextFunction
     }
   }
  // Initialize an array to store both categoryId and categoryName
- const categories: { categoryId: mongoose.Types.ObjectId, categoryName: string }[] = [];
+ const categories = Array.isArray(category) ? category.map(item => ({
+  categoryId: mongoose.Types.ObjectId.isValid(item.value) ? new mongoose.Types.ObjectId(item.value) : null,
+  categoryName: item.label || '',
+})).filter(item => item.categoryId) : [];
 
- if (Array.isArray(category)) {
-   for (const item of category) {
-     categories.push({
-       categoryId: new mongoose.Types.ObjectId(item.value),  // Added 'new' keyword
-       categoryName: item.label
-     });
-   }
- }
+// Parse Facts
+const parsedFacts = Array.isArray(facts) ? facts.map(item => ({
+  title: item.title || '',
+  field_type: item.field_type || 'Plain Text',
+  value: Array.isArray(item.value) ? item.value.map((val: FactValue) => 
+    typeof val === 'object' && val.value ? val.value : val
+  ) : [],
+  icon: item.icon || '',
+})) : [];
 
- console.log("categoryIds", categories)
+ // Parse Dates
+ const parsedDates = dates ? {
+  tripDuration: dates.tripDuration || '',
+  startDate: dates.startDate ? new Date(dates.startDate) : null,
+  endDate: dates.endDate ? new Date(dates.endDate) : null,
+} : {};
+
+// Parse Location
+const parsedLocation = location ? {
+  street: location.street || '',
+  city: location.city || '',
+  state: location.state || '',
+  country: location.country || '',
+  lat: parseFloat(location.lat) || 0,
+  lng: parseFloat(location.lng) || 0,
+} : {};
+
     
       const newTour = await tourModel.create({
           title,
@@ -47,8 +86,22 @@ export const createTour = async (req: Request, res: Response, next: NextFunction
           author: _req.userId,
           coverImage,
           file,
+          include,
+          exclude,
           category: categories,
           itinerary: parsedItinerary,
+          dates: parsedDates,
+          facts: parsedFacts,
+          faqs: Array.isArray(faqs) ? faqs.map(item => ({
+            question: item.question || '',
+            answer: item.answer || '',
+          })) : [],
+          gallery: Array.isArray(gallery) ? gallery.map(item => ({
+            image: item.image || '',
+          })) : [],
+          map: map || '',
+          location: parsedLocation,
+          enquiry: enquiry || true, // Assuming default value as true
       });
       res.status(201).json({ id: newTour._id, message: newTour });
   } catch (err) {
@@ -109,7 +162,24 @@ export const getTour = async (
 
 // Update a tour
 export const updateTour = async (req: Request, res: Response, next: NextFunction) => {
-  const { title, coverImage, file,  description,category, tourStatus, price,outline, itinerary } = req.body;
+  const {title,
+    coverImage,
+    file,
+    description,
+    category,
+    tourStatus,
+    price,
+    outline,
+    itinerary,
+    dates,
+    facts,
+    faqs,
+    gallery,
+    map,
+    include,
+    exclude,
+    location,
+  enquiry } = req.body;
   const tourId = req.params.tourId;
   console.log("updateTour", tourId)
   try {
@@ -147,6 +217,35 @@ export const updateTour = async (req: Request, res: Response, next: NextFunction
         });
       }
     }
+
+      // Parse Facts
+      const parsedFacts = Array.isArray(facts) ? facts.map(item => ({
+        title: item.title || '',
+        field_type: item.field_type || 'Plain Text',
+        value: Array.isArray(item.value) ? item.value.map((val: FactValue) => 
+          typeof val === 'object' && val.value ? val.value : val
+        ) : [],
+        icon: item.icon || '',
+      })) : [];
+  
+      // Parse Dates
+      const parsedDates = dates ? {
+        tripDuration: dates.tripDuration || '',
+        startDate: dates.startDate ? new Date(dates.startDate) : null,
+        endDate: dates.endDate ? new Date(dates.endDate) : null,
+      } : undefined;
+  
+      // Parse Location
+      const parsedLocation = location ? {
+        street: location.street || '',
+        city: location.city || '',
+        state: location.state || '',
+        country: location.country || '',
+        lat: parseFloat(location.lat) || 0,
+        lng: parseFloat(location.lng) || 0,
+      } : undefined;
+
+
      // Update tour with provided fields or keep existing ones
      const updatedTour = await tourModel.findByIdAndUpdate(
       tourId,
@@ -160,6 +259,20 @@ export const updateTour = async (req: Request, res: Response, next: NextFunction
         category: updatedCategories.length > 0 ? updatedCategories : tour.category,  // Update category or keep the existing one
         outline: outline || tour.outline,
         itinerary: parsedItinerary || tour.itinerary,
+        dates: parsedDates || tour.dates,
+        include: include || tour.include,
+        exclude: exclude || tour.exclude,
+        facts: parsedFacts.length > 0 ? parsedFacts : tour.facts,
+        faqs: Array.isArray(faqs) ? faqs.map(item => ({
+          question: item.question || '',
+          answer: item.answer || '',
+        })) : tour.faqs,
+        gallery: Array.isArray(gallery) ? gallery.map(item => ({
+          image: item.image || '',
+        })) : tour.gallery,
+        map: map || tour.map,
+        location: parsedLocation || tour.location,
+        enquiry: enquiry || tour.enquiry,
       },
       { new: true }
     );
@@ -189,16 +302,6 @@ export const deleteTour = async (req: Request, res: Response, next: NextFunction
     if (!(tour.author.toString() == _req.userId || _req.roles.includes('admin'))) {
       return next(createHttpError(403,"You cannot delete others' tour."));
     }
-    // Extract public IDs for deletion
-    const coverFileSplits = tour.coverImage.split("/");
-    const coverImagePublicId =
-      coverFileSplits.at(-2) + "/" + coverFileSplits.at(-1)?.split(".").at(-2);
-    const tourFileSplits = tour.file.split("/");
-    const tourFilePublicId =
-      tourFileSplits.at(-2) + "/" + tourFileSplits.at(-1)?.split(".").at(-2);
-    // Delete files from Cloudinary
-    await cloudinary.uploader.destroy(coverImagePublicId);
-    await cloudinary.uploader.destroy(tourFilePublicId, { resource_type: "raw" });
     // Delete tour from the database
     await tourModel.deleteOne({ _id: tourId });
     return res.sendStatus(204);

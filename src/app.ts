@@ -10,6 +10,8 @@ import galleryRoutes from "./gallery/galleryRoutes";
 import generateRouter from "./generate/generateRoute";
 import subscriberRouter from "./subscriber/subscriberRouter";
 import categoryRouter from "./user/category/categoryRoutes";
+import factsRouter from "./user/facts/factsRoutes";
+import faqsRouter from "./user/faq/faqRouter";
 
 const app = express();
 
@@ -47,6 +49,10 @@ app.use('/api/subscribers', subscriberRouter);
 app.use("/api/gallery", galleryRoutes);
 app.use("/api/generate", generateRouter);
 app.use("/api/category", categoryRouter);
+
+app.use("/api/facts", factsRouter);
+
+app.use("/api/faqs", faqsRouter);
 // Global error handler
 app.use(globalErrorHandler);
 
