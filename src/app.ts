@@ -1,17 +1,17 @@
 import express from "express";
 import globalErrorHandler from "./middlewares/globalErrorHandler";
-import userRouter from "./user/userRouter";
-import tourRouter from "./tours/tourRouter";
-import tourSearchRouter from "./tours/tourSearchRouter";
+import userRouter from "./api/user/userRouter";
+import tourRouter from "./api/tours/tourRouter";
+import tourSearchRouter from "./api/tours/tourSearchRouter";
 import cors from "cors";
 import { config } from "./config/config";
 import breadcrumbsMiddleware from "./middlewares/breadcrumbsMiddleware";
-import galleryRoutes from "./gallery/galleryRoutes";
-import generateRouter from "./generate/generateRoute";
-import subscriberRouter from "./subscriber/subscriberRouter";
-import categoryRouter from "./user/category/categoryRoutes";
-import factsRouter from "./user/facts/factsRoutes";
-import faqsRouter from "./user/faq/faqRouter";
+import galleryRoutes from "./api/gallery/galleryRoutes";
+import generateRouter from "./api/generate/generateRoute";
+import subscriberRouter from "./api/subscriber/subscriberRouter";
+import categoryRouter from "./api/user/category/categoryRoutes";
+import factsRouter from "./api/user/facts/factsRoutes";
+import faqsRouter from "./api/user/faq/faqRouter";
 
 const app = express();
 

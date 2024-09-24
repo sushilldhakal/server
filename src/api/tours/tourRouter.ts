@@ -1,7 +1,7 @@
 import express from 'express';
 import { createTour, deleteTour, getAllTours, getLatestTours, getTour, searchTours, updateTour } from './tourController';
-import { authenticate } from "../middlewares/authenticate";
-import { uploadNone } from "../middlewares/multer";
+import { authenticate } from "../../middlewares/authenticate";
+import { uploadNone } from "../../middlewares/multer";
 import mongoose from 'mongoose';
 
 const tourRouter = express.Router();

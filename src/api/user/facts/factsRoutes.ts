@@ -1,9 +1,9 @@
 import express from "express";
-import {authenticate, isAdminOrSeller} from "../../middlewares/authenticate";
+import {authenticate, isAdminOrSeller} from "../../../middlewares/authenticate";
 
 
 import { addFacts,getAllFacts, getUserFacts, updateFacts, deleteFacts, getSingleFacts } from "./factsController";
-import { uploadNone } from "../../middlewares/multer";
+import { uploadNone } from "../../../middlewares/multer";
 
 
 const factsRouter = express.Router();

@@ -1,4 +1,4 @@
-import { AuthRequest } from './../../middlewares/authenticate';
+import { AuthRequest } from './../../../middlewares/authenticate';
 import Facts from './factsModel';
 import { Response, Request, NextFunction } from 'express';
 

@@ -1,8 +1,8 @@
 
 import express, { NextFunction } from "express";
 import { addMedia, deleteMedia, getMedia, getSingleMedia, updateMedia } from "./galleryController";
-import {authenticate, isAdminOrSeller} from "../middlewares/authenticate";
-import { uploadMultiple, uploadNone } from "../middlewares/multer";
+import {authenticate, isAdminOrSeller} from "../../middlewares/authenticate";
+import { uploadMultiple, uploadNone } from "../../middlewares/multer";
 const galleryRoutes = express.Router();
 
 

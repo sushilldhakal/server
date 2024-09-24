@@ -1,8 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import createHttpError from 'http-errors';
 import tourModel from './tourModel';
-import cloudinary from '../config/cloudinary';
-import { AuthRequest } from "../middlewares/authenticate";
+import cloudinary from '../../config/cloudinary';
+import { AuthRequest } from "../../middlewares/authenticate";
 import mongoose from 'mongoose';
 import { FactValue } from './tourTypes';
 
@@ -315,7 +315,7 @@ export const deleteTour = async (req: Request, res: Response, next: NextFunction
 export const getLatestTours = async (req: Request, res: Response, next: NextFunction) => {
   // Add logging to handlers
   try {
-      const tours = await tourModel.find().sort({ createdAt: -1 }).limit(3).exec();
+      const tours = await tourModel.find().populate("author", "name").sort({ createdAt: -1 }).limit(10).exec();
       res.status(200).json({
           status: 'success',
           results: tours.length,

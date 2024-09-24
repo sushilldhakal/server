@@ -1,4 +1,4 @@
-import { AuthRequest } from './../../middlewares/authenticate';
+import { AuthRequest } from './../../../middlewares/authenticate';
 import Category from "./categoryModel";
 import Tour from "../../tours/tourModel";
 import { Request, Response, NextFunction } from 'express';

@@ -1,8 +1,8 @@
 import { Request, Response } from "express";
 import rateLimit from 'express-rate-limit';
-import { config } from "../config/config";
+import { config } from "../../config/config";
 import OpenAI from "openai";
-import { AuthRequest } from "../middlewares/authenticate";
+import { AuthRequest } from "../../middlewares/authenticate";
 import UserSettings from "../user/userSettingModel";
 
 // const openai = new OpenAI({

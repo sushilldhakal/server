@@ -1,4 +1,4 @@
-import { AuthRequest } from './../middlewares/authenticate';
+import { AuthRequest } from './../../middlewares/authenticate';
 import { Request, Response, NextFunction } from 'express';
 import UserSettings from './userSettingModel';
 

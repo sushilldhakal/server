@@ -4,7 +4,7 @@ import { GalleryDocument } from './galleryTypes';
 // import cloudinary from '../config/cloudinary';
 import { v2 as cloudinary, UploadApiOptions } from "cloudinary";
 import createHttpError from 'http-errors';
-import { AuthRequest } from '../middlewares/authenticate';
+import { AuthRequest } from '../../middlewares/authenticate';
 import mongoose from 'mongoose';
 import path from 'path';
 import fs from 'fs';
@@ -153,6 +153,7 @@ const fetchResourceByPublicId = async (mediaType: string, publicId: string, owne
 export const getMedia = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { userId, roles } = req; // Assuming roles and userId are attached to the request object
+    console.log(req.query)
     const { pageSize = '10', page = '1', mediaType } = req.query;
     if (!['images', 'pdfs', 'videos'].includes(mediaType as string)) {
       return next(createHttpError(400, 'Invalid mediaType parameter'));
@@ -171,12 +172,9 @@ export const getMedia = async (req: AuthRequest, res: Response, next: NextFuncti
       ? {} // Admin can access all galleries
       : { user: new mongoose.Types.ObjectId(userId) }; // Seller can only access their own gallery
 
-    // Find galleries with pagination
-    const galleries = await Gallery.find(query)
-      .sort({ createdAt: -1 }) // Sort by most recent
-      .skip((parsedPage - 1) * parsedPageSize)
-      .limit(parsedPageSize)
-      .exec();
+   // Fetch galleries without skip and limit
+   const galleries = await Gallery.find(query).sort({ createdAt: -1 }).exec();
+
 
     // Separate media into different arrays
     const images = mediaType === 'images' ? galleries.flatMap(gallery => gallery.images) : [];
@@ -188,15 +186,36 @@ export const getMedia = async (req: AuthRequest, res: Response, next: NextFuncti
     const sortedPdfs = pdfs.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
     const sortedVideos = videos.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
 
+     // Slice the media array for pagination
+     const responseMedia = mediaType === 'images'
+     ? sortedImages.slice((parsedPage - 1) * parsedPageSize, parsedPage * parsedPageSize)
+     : mediaType === 'pdfs'
+     ? sortedPdfs.slice((parsedPage - 1) * parsedPageSize, parsedPage * parsedPageSize)
+     : sortedVideos.slice((parsedPage - 1) * parsedPageSize, parsedPage * parsedPageSize);
+
+   // Calculate if there's a next page based on the total number of media items
+   const totalMediaCount = mediaType === 'images'
+     ? sortedImages.length
+     : mediaType === 'pdfs'
+     ? sortedPdfs.length
+     : sortedVideos.length;
+
+   const hasNextPage = parsedPage * parsedPageSize < totalMediaCount;
+
 
     res.json({
-      [mediaType as string]: mediaType === 'images' ? sortedImages : mediaType === 'pdfs' ? sortedPdfs : sortedVideos,
+    //[mediaType as string]: responseMedia,
+    [mediaType as string]:responseMedia,
     page: parsedPage,
     pageSize: parsedPageSize,
+    hasNextPage,
+    nextCursor: hasNextPage ? parsedPage + 1 : null,
     totalImages: mediaType === 'images' ? images.length : 0,
-      totalPDFs: mediaType === 'pdfs' ? pdfs.length : 0,
-      totalVideos: mediaType === 'videos' ? videos.length : 0
+    totalPDFs: mediaType === 'pdfs' ? pdfs.length : 0,
+    totalVideos: mediaType === 'videos' ? videos.length : 0
     });
+
+    console.log(parsedPage, parsedPageSize, hasNextPage, responseMedia.length)
   } catch (error) {
     next(error);
   }
@@ -366,6 +385,8 @@ export const addMedia = async (req: AuthRequest, res: Response, next: NextFuncti
 
 
 export const deleteMedia = async (req: AuthRequest, res: Response, next: NextFunction) => {
+
+  console.log(req.body);
   try {
     const { userId, roles } = req;
     const paramUserId = req.params.userId;

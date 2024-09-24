@@ -2,8 +2,8 @@ import { addOrUpdateSettings, getUserSettings } from './userSettingController';
 import express from "express";
 import { getAllUsers, getUserById, createUser, loginUser, updateUser, deleteUser, changeUserRole, verifyUser, forgotPassword, resetPassword} from "./userController";
 import { body, param } from 'express-validator';
-import {authenticate, isAdminOrSeller} from "../middlewares/authenticate";
-import { upload, uploadNone } from '../middlewares/multer';
+import {authenticate, isAdminOrSeller} from "../../middlewares/authenticate";
+import { upload, uploadNone } from '../../middlewares/multer';
 
 const userRouter = express.Router();
 

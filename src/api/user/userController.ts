@@ -5,9 +5,9 @@ import userModel from "./userModel";
 import jwt from "jsonwebtoken";
 import { sign } from "jsonwebtoken";
 import { validationResult } from "express-validator";
-import { AuthRequest } from "../middlewares/authenticate";
-import { config } from "../config/config";
-import { sendResetPasswordEmail, sendVerificationEmail } from "../controller/mailer";
+import { AuthRequest } from "../../middlewares/authenticate";
+import { config } from "../../config/config";
+import { sendResetPasswordEmail, sendVerificationEmail } from "../../controller/mailer";
 // create user
 export const createUser = async (req: Request, res: Response, next: NextFunction) => {
   const { name, email, password, phone } = req.body;

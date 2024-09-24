@@ -1,9 +1,9 @@
 import express from "express";
-import {authenticate, isAdminOrSeller} from "../../middlewares/authenticate";
+import {authenticate, isAdminOrSeller} from "../../../middlewares/authenticate";
 
 
 import { addCategory,getAllCategories, getUserCategories, updateCategory, deleteCategory, getSingleCategory } from "./categoryController";
-import { uploadNone } from "../../middlewares/multer";
+import { uploadNone } from "../../../middlewares/multer";
 
 
 const categoryRouter = express.Router();

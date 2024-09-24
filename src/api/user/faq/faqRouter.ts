@@ -1,9 +1,9 @@
 import express from "express";
-import {authenticate, isAdminOrSeller} from "../../middlewares/authenticate";
+import {authenticate, isAdminOrSeller} from "../../../middlewares/authenticate";
 
 
 import { addFaqs, getUserFaqs, updateFaqs, deleteFaqs, getAllFaqs, getSingleFaqs } from "./faqController";
-import { uploadNone } from "../../middlewares/multer";
+import { uploadNone } from "../../../middlewares/multer";
 
 
 const faqsRouter = express.Router();

@@ -1,4 +1,4 @@
-import { AuthRequest } from './../../middlewares/authenticate';
+import { AuthRequest } from './../../../middlewares/authenticate';
 import Faqs from './faqModel';
 import { Response, Request, NextFunction } from 'express';
 

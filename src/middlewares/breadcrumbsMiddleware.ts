@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
-import tourModel from "../tours/tourModel";
-import userModel from "../user/userModel";
+import tourModel from "../api/tours/tourModel";
+import userModel from "../api/user/userModel";
 import mongoose from "mongoose";
 
 interface Breadcrumb {
