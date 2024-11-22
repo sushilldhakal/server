@@ -19,7 +19,6 @@ const authenticate = (req: Request, res: Response, next: NextFunction) => {
     const _req = req as AuthRequest;
     _req.userId = decoded.sub as string;
     _req.roles = decoded.roles as string;
-
     next();
   } catch (err) {
     return next(createHttpError(401, "Token expired."));

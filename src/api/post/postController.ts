@@ -1,24 +1,26 @@
 import { NextFunction, Request, Response } from 'express';
 import mongoose from 'mongoose';
-import Post from './postModel';  // Assuming Post model is in models folder
+import Post, { IPost } from './postModel';  // Assuming Post model is in models folder
 import createHttpError from 'http-errors';
 import { AuthRequest } from '../../middlewares/authenticate';
 import Comment from './commentModel';  // Adjust the path
+import { paginate, PaginationParams } from '../../utils/pagination';
+
 // Add a new post
 export const addPost = async (req: Request,
     res: Response,
     next: NextFunction): Promise<void> => {
-      console.log(req.body);
+      console.log("post body",req.body);
   try {
     const _req = req as AuthRequest;
     const { title, content, tags, image, status, enableComments } = req.body;
-
+    console.log("post body role",_req);
       // Check if the user has the required role
       const userRole = _req.roles; // Assuming role is stored on the user object
-      if (userRole !== 'seller' && userRole !== 'admin') {
-        res.status(403).json({ message: 'Access denied: Unauthorized role' });
-        return;
-      }
+      // if (userRole !== 'seller' && userRole !== 'admin') {
+      //   res.status(403).json({ message: 'Access denied: Unauthorized role' });
+      //   return;
+      // }
 
      // Parse the tags string into an array
      const parsedTags = JSON.parse(tags); 
@@ -50,42 +52,27 @@ export const getAllPosts = async (req: Request,
   res: Response,
   next: NextFunction): Promise<void> => {
     try {
-      const { page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc', search } = req.query;
-      // Pagination
-      const pageNumber = parseInt(page as string, 10);
-      const pageSize = parseInt(limit as string, 10);
-
-      // Sorting order
-      const sort: { [key: string]: 1 | -1 } = { [sortBy as string]: sortOrder === 'desc' ? -1 : 1 };
-
-      // Search filtering
-      const query: any = {};
-      if (search) {
-        query.title = { $regex: search, $options: 'i' };  // Case-insensitive search by title
-      }
-
-      // Fetching posts with pagination, sorting, and filtering
-      const posts = await Post.find(query)
-        .sort(sort)
-        .skip((pageNumber - 1) * pageSize)
-        .limit(pageSize)
-        .populate("author", "name")
-        .populate('comments');
-
-      // Getting total count for pagination
-      const totalPosts = await Post.countDocuments(query);
-
+      const paginationParams: PaginationParams = {
+        page: req.query.page ? parseInt(req.query.page as string, 10) : undefined,
+        limit: req.query.limit ? parseInt(req.query.limit as string, 10) : undefined,
+        sortBy: req.query.sortBy as string,
+        sortOrder: req.query.sortOrder as 'asc' | 'desc',
+        search: req.query.search as string
+      };
+  
+      const { page, limit, totalPages, totalItems, items } = await paginate<IPost>(Post, {}, paginationParams);
+  
       res.status(200).json({
-        page: pageNumber,
-        limit: pageSize,
-        totalPages: Math.ceil(totalPosts / pageSize),
-        totalPosts,
-        posts,
+        page,
+        limit,
+        totalPages,
+        totalItems,
+        posts: items
       });
     } catch (err) {
-        console.error("Error fetching posts:", err);
-        next(createHttpError(500, 'Failed to get posts'));
-      }
+      console.error('Error fetching posts:', err);
+      next(createHttpError(500, 'Failed to get posts'));
+    }
 };
 
 

@@ -115,7 +115,6 @@ export const getAllTours = async (
   res: Response,
   next: NextFunction
 ) => {
-  console.log("getAllTours")
   try {
     const tours = await tourModel.find().populate("author", "name");
     res.status(200).json({ tours });
@@ -123,6 +122,59 @@ export const getAllTours = async (
     next(createHttpError(500, 'Failed to get tours'));
   }
 };
+
+// Get user tours
+export const getUserTours = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  const _req = req as AuthRequest;
+  try {
+    // Get pagination parameters from query
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const skip = (page - 1) * limit;
+
+    // Base query
+    let query = tourModel.find();
+
+    // Apply role-based filtering
+    if (_req.roles !== 'admin') {
+      query = query.find({ author: _req.userId });
+    }
+
+    // Get total count for pagination
+    const totalTours = await tourModel.countDocuments(
+      _req.roles === 'admin' ? {} : { author: _req.userId }
+    );
+
+    // Apply pagination and populate
+    const tours = await query
+      .populate("author", "name email")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      data: {
+        tours,
+        pagination: {
+          currentPage: page,
+          totalPages: Math.ceil(totalTours / limit),
+          totalItems: totalTours,
+          itemsPerPage: limit
+        }
+      }
+    });
+  } catch (err) {
+    console.error('Error in getUserTours:', err);
+    next(createHttpError(500, 'Failed to get tours'));
+  }
+};
+
 
 //Get a single tour
 export const getTour = async (
@@ -418,5 +470,3 @@ export const searchTours = async (
     next(createHttpError(500, 'Failed to search tours'));
   }
 };
-
-

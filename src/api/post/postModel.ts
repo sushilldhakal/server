@@ -1,7 +1,7 @@
 import mongoose, { Document, Schema, Model, model } from 'mongoose';
 
 // Define the TypeScript interface for the Post document
-interface IPost extends Document {
+export interface IPost extends Document {
   title: string;
   content: string;
   author: mongoose.Types.ObjectId;  // Author references the User model

@@ -245,7 +245,7 @@ export const forgotPassword = async (req: Request, res: Response, next: NextFunc
       const error = createHttpError(404, 'User not found');
       return next(error);
     }
-
+    console.log(user)
     if (!config.jwtSecret) {
       throw new Error('JWT Secret is not defined');
     }

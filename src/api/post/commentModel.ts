@@ -30,7 +30,7 @@ const CommentSchema: Schema<IComment> = new Schema({
     required: true,
   },
   likes: { type: Number, default: 0 },
-  timestamp: { type: String, required: true },
+  timestamp: { type: String },
   replies: [
     {
       type: mongoose.Schema.Types.ObjectId,

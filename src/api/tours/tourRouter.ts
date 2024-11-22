@@ -1,5 +1,5 @@
 import express from 'express';
-import { createTour, deleteTour, getAllTours, getLatestTours, getTour, searchTours, updateTour } from './tourController';
+import { createTour, deleteTour, getAllTours, getLatestTours, getTour, getUserTours, searchTours, updateTour } from './tourController';
 import { authenticate } from "../../middlewares/authenticate";
 import { uploadNone } from "../../middlewares/multer";
 import mongoose from 'mongoose';
@@ -9,9 +9,10 @@ const tourRouter = express.Router();
 // Define specific routes before more generic ones
 
 tourRouter.get("/",  (req, res, next) => {
-  console.log('Query all:', req.query);
   getAllTours(req, res, next);
 });
+
+tourRouter.get("/:userId",authenticate,getUserTours);
 
 tourRouter.get('/:tourId', (req, res, next) => {
   const { tourId } = req.params;
