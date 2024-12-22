@@ -8,4 +8,11 @@ export interface User{
   roles: string;
   phone: number;
   verified: boolean;
+  avatar: string;
+  wishlists: string[];
+  bookings: string[];
+  reviews: string[];
+  payment_methods: string[];
+  createdAt: Date;
+  updatedAt: Date;
 }

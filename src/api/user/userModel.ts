@@ -12,12 +12,37 @@ const userSchema = new mongoose.Schema<User>({
     password: { type: String, required: true },
     roles: {
         type: String,
-        enum: ['user', 'admin', 'company', 'subscriber'],
+        enum: ['user', 'admin', 'seller', 'subscriber'],
         default: 'user',
+      },
+      avatar: {
+        type: String,
       },
       phone: {
         type: Number,
       },
+      wishlists: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Tour",
+        },],
+        bookings: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Tour",
+        },],
+        reviews: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Tour",
+        },],
+        payment_methods: [
+          {
+            cardNumber: {type: String},
+            expirationDate: {type: String},
+            cardholderName: {type: String},
+          }
+        ],
       verified : {
         type: Boolean,
         default: false
