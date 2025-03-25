@@ -10,11 +10,9 @@ import { paginate, PaginationParams } from '../../utils/pagination';
 export const addPost = async (req: Request,
     res: Response,
     next: NextFunction): Promise<void> => {
-      console.log("post body",req.body);
   try {
     const _req = req as AuthRequest;
     const { title, content, tags, image, status, enableComments } = req.body;
-    console.log("post body role",_req);
       // Check if the user has the required role
       const userRole = _req.roles; // Assuming role is stored on the user object
       // if (userRole !== 'seller' && userRole !== 'admin') {
@@ -61,15 +59,21 @@ export const getAllPosts = async (req: Request,
       };
   
       const { page, limit, totalPages, totalItems, items } = await paginate<IPost>(Post, {}, paginationParams);
-  
-      res.status(200).json({
-        page,
-        limit,
-        totalPages,
-        totalItems,
-        posts: items
-      });
-    } catch (err) {
+      
+      // Fetch posts with populated author details
+      const posts = await Post.find({}).populate('author', 'name');
+
+          res.status(200).json({
+            page,
+            limit,
+            totalPages,
+            totalItems,
+            posts: posts.map(post => ({
+                ...post.toObject(),
+                author: post.author // Include author's name
+            })),
+        });
+    }catch (err) {
       console.error('Error fetching posts:', err);
       next(createHttpError(500, 'Failed to get posts'));
     }
@@ -77,7 +81,6 @@ export const getAllPosts = async (req: Request,
 
 
 export const getAllUserPosts = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  console.log("this is a test")
   try {
     const _req = req as AuthRequest; // Assuming `userId` and `role` are available in _req
     const { page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc', search } = req.query;
@@ -150,7 +153,6 @@ export const getPost = async (req: Request,
     if (!breadcrumbs.length) {
       return next(createHttpError(404, 'Failed to get breadcrumbs'));
     }
-    console.log( post,  breadcrumbs)
     res.status(200).json({ post,  breadcrumbs});
   } catch (err) {
     next(createHttpError(500, 'Failed to get post'));
