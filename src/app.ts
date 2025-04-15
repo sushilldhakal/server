@@ -45,7 +45,7 @@ app.get("/", (req, res) => {
 app.use("/api/users", userRouter);
 app.use("/api/tours",tourRouter);
 app.use("/api/tour/search",tourSearchRouter);
-app.use("/api/destinations", destinationRouter);
+// app.use("/api/destinations", destinationRouter);
 app.use('/api/subscribers', subscriberRouter);
 app.use("/api/gallery", galleryRoutes);
 app.use("/api/generate", generateRouter);
