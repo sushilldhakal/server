@@ -3,6 +3,7 @@ import globalErrorHandler from "./middlewares/globalErrorHandler";
 import userRouter from "./api/user/userRouter";
 import tourRouter from "./api/tours/tourRouter";
 import tourSearchRouter from "./api/tours/tourSearchRouter";
+import destinationRouter from "./api/destinations/destinationRouter";
 import cors from "cors";
 import { config } from "./config/config";
 import breadcrumbsMiddleware from "./middlewares/breadcrumbsMiddleware";
@@ -44,6 +45,7 @@ app.get("/", (req, res) => {
 app.use("/api/users", userRouter);
 app.use("/api/tours",tourRouter);
 app.use("/api/tour/search",tourSearchRouter);
+app.use("/api/destinations", destinationRouter);
 app.use('/api/subscribers', subscriberRouter);
 app.use("/api/gallery", galleryRoutes);
 app.use("/api/generate", generateRouter);

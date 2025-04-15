@@ -7,6 +7,7 @@ interface IComment extends Document {
   text: string;
   approve:boolean; 
   likes: number;
+  views: number;
   timestamp: string;
   replies: IComment[]; // Array for nested replies
   created_at: Date;
@@ -30,6 +31,7 @@ const CommentSchema: Schema<IComment> = new Schema({
     required: true,
   },
   likes: { type: Number, default: 0 },
+  views: { type: Number, default: 0 },
   timestamp: { type: String },
   replies: [
     {

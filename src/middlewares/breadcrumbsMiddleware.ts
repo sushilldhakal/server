@@ -18,14 +18,23 @@ const breadcrumbsMiddleware = async (req: Request, res: Response, next: NextFunc
     let label = parts[i];
 
     if (i > 0 && parts[i - 1] === 'tours') {
-      try {
-        const tour = await tourModel.findById(label).select('title');
-        if (tour) {
-          label = tour.title;
+      // Skip fetching tour title for special routes
+      if (['reviews', 'all', 'pending'].includes(label)) {
+        // Just capitalize the label for special routes
+        label = label.charAt(0).toUpperCase() + label.slice(1);
+      } else {
+        // Only try to fetch a tour if the label is a valid ObjectId
+        if (mongoose.isValidObjectId(label)) {
+          try {
+            const tour = await tourModel.findById(label).select('title');
+            if (tour) {
+              label = tour.title;
+            }
+          } catch (error) {
+            console.error(`Error fetching tour title for ID ${label}:`, error);
+            // Handle the error appropriately, such as logging and returning a generic label
+          }
         }
-      } catch (error) {
-        console.error(`Error fetching tour title for ID ${label}:`, error);
-        // Handle the error appropriately, such as logging and returning a generic label
       }
     } else if (i > 0 && parts[i - 1] === 'users') {
       // Check if label is a valid ObjectId

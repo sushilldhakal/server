@@ -1,9 +1,10 @@
-import { addOrUpdateSettings, getUserSettings } from './userSettingController';
+import { addOrUpdateSettings, getDecryptedApiKey, getUserSettings } from './userSettingController';
 import express from "express";
 import { getAllUsers, getUserById, createUser, loginUser, updateUser, deleteUser, changeUserRole, verifyUser, forgotPassword, resetPassword} from "./userController";
+import { uploadAvatar, getUserAvatar } from './userAvatarController';
 import { body, param } from 'express-validator';
 import {authenticate, isAdminOrSeller} from "../../middlewares/authenticate";
-import { upload, uploadNone } from '../../middlewares/multer';
+import { upload, uploadNone, uploadAvatar as uploadAvatarMiddleware } from '../../middlewares/multer';
 
 const userRouter = express.Router();
 
@@ -25,21 +26,27 @@ userRouter.patch(
   '/setting/:userId', uploadNone, authenticate as any, isAdminOrSeller as any, addOrUpdateSettings as any
 );
 userRouter.get('/setting/:userId', authenticate, isAdminOrSeller as any, getUserSettings);
+// Add route for getting decrypted API keys
+userRouter.get('/setting/:userId/key', authenticate as any, isAdminOrSeller as any, getDecryptedApiKey as any);
 
 userRouter.put(
     '/:userId',authenticate,updateUser
   );
 
-  userRouter.delete('/:userId',[param('id').isMongoId(), authenticate], deleteUser);
+userRouter.delete('/:userId',[param('id').isMongoId(), authenticate], deleteUser);
 
-  userRouter.post('/change-role',authenticate, changeUserRole);
+userRouter.post('/change-role',authenticate, changeUserRole);
 
-  userRouter.post('/login/verify',[
-    body('token').notEmpty()
-  ], verifyUser);
+userRouter.post('/login/verify',[
+  body('token').notEmpty()
+], verifyUser);
 
-  userRouter.post('/login/forgot', forgotPassword);
+userRouter.post('/login/forgot', forgotPassword);
 
-  userRouter.post('/login/reset', resetPassword);
+userRouter.post('/login/reset', resetPassword);
+
+// Avatar routes
+userRouter.post('/:userId/avatar', authenticate, uploadAvatarMiddleware, uploadAvatar);
+userRouter.get('/:userId/avatar', authenticate, getUserAvatar);
 
 export default userRouter;
