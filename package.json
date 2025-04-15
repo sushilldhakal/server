@@ -4,6 +4,7 @@
   "description": "node server Rest API",
   "main": "server.ts",
   "scripts": {
+    "prebuild": "rm -rf node_modules package-lock.json && npm install",
     "dev": "nodemon server.ts",
     "build": "tsc",
     "lint": "eslint .",
@@ -58,5 +59,9 @@
   },
   "engines": {
     "node": "v22.3.0"
-  }
+  },
+  "resolutions": {
+  "@types/express-serve-static-core": "4.17.31",
+  "@types/multer": "1.4.11"
+}
 }
