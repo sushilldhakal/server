@@ -3,7 +3,7 @@ import globalErrorHandler from "./middlewares/globalErrorHandler";
 import userRouter from "./api/user/userRouter";
 import tourRouter from "./api/tours/tourRouter";
 import tourSearchRouter from "./api/tours/tourSearchRouter";
-import destinationRouter from "./api/destinations/destinationRouter";
+// import destinationRouter from "./api/destinations/destinationRouter";
 import cors from "cors";
 import { config } from "./config/config";
 import breadcrumbsMiddleware from "./middlewares/breadcrumbsMiddleware";
