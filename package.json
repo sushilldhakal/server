@@ -31,7 +31,6 @@
     "@typescript-eslint/parser": "^8.1.0",
     "eslint": "^8.57.0",
     "globals": "^15.7.0",
-    "mongoose": "^8.4.4",
     "nodemon": "^3.1.4",
     "ts-node": "^10.9.2",
     "typescript": "^5.5.3",
@@ -51,6 +50,7 @@
     "googleapis": "^140.0.1",
     "http-errors": "^2.0.0",
     "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.4.4",
     "multer": "^1.4.5-lts.2",
     "nodemailer": "^6.9.14",
     "openai": "^4.55.0"
