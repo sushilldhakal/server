@@ -19,7 +19,7 @@ const destinationSchema = new mongoose.Schema<Destination>(
     },
     country: {
       type: String,
-      required: true,
+      required: false,
     },
     region: {
       type: String,
@@ -37,6 +37,15 @@ const destinationSchema = new mongoose.Schema<Destination>(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Tour',
     }],
+    isActive: {
+      type: Boolean,
+      default: true
+    },
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
+    }
   },
   { timestamps: true }
 );

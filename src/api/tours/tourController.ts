@@ -287,6 +287,26 @@ export const getUserTours = async (
   }
 };
 
+
+export const getUserToursTitle = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const authReq = req as AuthRequest;
+    const userId = authReq.userId;
+    const tours = await tourModel
+      .find({ author: userId })
+      .select('title')
+      .lean();
+    res.status(200).json({ success: true, data: tours });
+  } catch (err) {
+    console.error('Error in getUserToursTitle:', err);
+    next(createHttpError(500, 'Failed to get tours'));
+  }
+};
+
 // Get a single tour
 export const getTour = async (
   req: Request,
@@ -332,7 +352,6 @@ export const updateTour = async (
     const authReq = req as AuthRequest;
     const userId = authReq.user?._id;
     const tourId = req.params.tourId; // Changed from req.params.id to req.params.tourId
-    console.log("req.body ", tourId, userId, req.body);
     const {
       title,
       code,
@@ -559,7 +578,6 @@ export const deleteTour = async (req: Request, res: Response, next: NextFunction
 
     res.status(200).json({ message: "Tour deleted successfully" });
   } catch (err: any) {
-    console.log(err);
     next(createHttpError(500, "Error while deleting the tour."));
   }
 };
@@ -581,22 +599,7 @@ export const getLatestTours = async (
   }
 };
 
-// Get tours by rating
-export const getToursByRating = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    const tours = await tourModel.find({ tourStatus: 'Published', reviewCount: { $gt: 0 } })
-      .sort({ averageRating: -1 })
-      .limit(10)
-      .populate("author", "name roles");
-    res.status(200).json({ tours });
-  } catch (err) {
-    next(createHttpError(500, 'Failed to get top-rated tours'));
-  }
-};
+
 
 // Get discounted tours
 export const getDiscountedTours = async (
@@ -746,591 +749,21 @@ export const searchTours = async (
   }
 };
 
-// Add a review to a tour
-export const addReview = async (
+
+// Get tours by rating
+export const getToursByRating = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
   try {
-    const { tourId } = req.params;
-    const { rating, comment } = req.body;
-    const _req = req as AuthRequest;
-
-    // Ensure user is authenticated
-    if (!_req.userId) {
-      return next(createHttpError(401, 'You must be logged in to add a review'));
-    }
-
-    if (!mongoose.Types.ObjectId.isValid(tourId)) {
-      return next(createHttpError(400, 'Invalid tour ID'));
-    }
-
-    // Validate rating (now allowing 0.5 increments)
-    if (!rating || rating < 0.5 || rating > 5) {
-      return next(createHttpError(400, 'Rating must be between 0.5 and 5'));
-    }
-
-    // Round rating to nearest 0.5
-    const roundedRating = Math.round(rating * 2) / 2;
-
-    const tour = await tourModel.findById(tourId);
-    if (!tour) {
-      return next(createHttpError(404, 'Tour not found'));
-    }
-
-    // Check if user has already reviewed this tour
-    const existingReviewIndex = tour.reviews.findIndex(
-      (review: any) => review.user.toString() === _req.userId
-    );
-
-    if (existingReviewIndex !== -1) {
-      // Update existing review
-      tour.reviews[existingReviewIndex].rating = roundedRating;
-      tour.reviews[existingReviewIndex].comment = comment;
-      tour.reviews[existingReviewIndex].status = 'pending'; // Reset to pending when updated
-      tour.reviews[existingReviewIndex].createdAt = new Date();
-    } else {
-      // Add new review
-      tour.reviews.push({
-        user: new mongoose.Types.ObjectId(_req.userId),
-        rating: roundedRating,
-        comment,
-        status: 'pending', // All new reviews start as pending
-        likes: 0,
-        views: 0,
-        replies: [],
-        createdAt: new Date()
-      });
-    }
-
-    // Save the tour - the pre-save hook will handle recalculating ratings
-    await tour.save();
-
-    // Increment the view counter for the tour
-    await tourModel.findByIdAndUpdate(tourId, { $inc: { views: 1 } });
-
-    res.status(200).json({
-      success: true,
-      message: existingReviewIndex !== -1 ? 'Review updated successfully' : 'Review added successfully. It will be visible after approval.',
-      data: {
-        review: existingReviewIndex !== -1 ? tour.reviews[existingReviewIndex] : tour.reviews[tour.reviews.length - 1],
-        averageRating: tour.averageRating,
-        reviewCount: tour.reviewCount,
-        approvedReviewCount: tour.approvedReviewCount || 0
-      }
-    });
-  } catch (err: any) {
-    console.error('Error in addReview:', err);
-    next(createHttpError(500, 'Failed to add review'));
-  }
-};
-
-// Get reviews for a tour
-export const getTourReviews = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    const { tourId } = req.params;
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 10;
-    const skip = (page - 1) * limit;
-    const status = req.query.status as string || 'all'; // Default to showing all reviews instead of just approved
-
-    if (!mongoose.Types.ObjectId.isValid(tourId)) {
-      return next(createHttpError(400, 'Invalid tour ID'));
-    }
-
-    const tour = await tourModel.findById(tourId)
-      .populate({
-        path: 'reviews.user',
-        select: 'name email profileImage roles'
-      })
-      .populate({
-        path: 'reviews.replies.user',
-        select: 'name email profileImage roles'
-      });
-
-    if (!tour) {
-      return next(createHttpError(404, 'Tour not found'));
-    }
-
-    // Filter reviews by status if specified
-    let filteredReviews = tour.reviews;
-    if (status !== 'all') {
-      filteredReviews = tour.reviews.filter((review: any) => review.status === status);
-    }
-
-    // Sort reviews by date (newest first) and apply pagination
-    const sortedReviews = filteredReviews.sort((a: any, b: any) => 
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
-
-    const paginatedReviews = sortedReviews.slice(skip, skip + limit);
-
-    // Increment view counter for each review being viewed
-    for (const review of paginatedReviews) {
-      await tourModel.updateOne(
-        { _id: tourId, "reviews._id": review._id },
-        { $inc: { "reviews.$.views": 1 } }
-      );
-    }
-
-
-    console.log("paginated reveiw ", paginatedReviews )
-    res.status(200).json({
-      success: true,
-      data: {
-        reviews: paginatedReviews,
-        pagination: {
-          currentPage: page,
-          totalPages: Math.ceil(filteredReviews.length / limit),
-          totalItems: filteredReviews.length,
-          itemsPerPage: limit
-        },
-        averageRating: tour.averageRating,
-        reviewCount: tour.reviewCount,
-        approvedReviewCount: tour.approvedReviewCount || 0
-      }
-    });
-  } catch (err: any) {
-    console.error('Error in getTourReviews:', err);
-    next(createHttpError(500, 'Failed to get reviews'));
-  }
-};
-
-// Get pending reviews for a seller's tours
-export const getPendingReviews = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    const _req = req as AuthRequest;
-    const sellerId = _req.userId;
-    
-    // Ensure user is authenticated
-    if (!sellerId) {
-      return next(createHttpError(401, 'You must be logged in to view pending reviews'));
-    }
-    
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 10;
-    const skip = (page - 1) * limit;
-
-    // Find all tours by this seller that have pending reviews
-    const tours = await tourModel.find({ 
-      author: sellerId,
-      'reviews.status': 'pending'
-    }).populate({
-      path: 'reviews.user',
-      select: 'name email profileImage roles'
-    });
-
-    if (!tours || tours.length === 0) {
-      return res.status(200).json({
-        success: true,
-        message: 'No pending reviews found',
-        data: {
-          reviews: [],
-          pagination: {
-            currentPage: page,
-            totalPages: 0,
-            totalItems: 0,
-            itemsPerPage: limit
-          }
-        }
-      });
-    }
-
-    // Extract all pending reviews from all tours
-    const pendingReviews = tours.flatMap(tour => {
-      const tourReviews = tour.reviews.filter((review: any) => review.status === 'pending');
-      return tourReviews.map((review: any) => ({
-        ...review.toObject(),
-        tourId: tour._id,
-        tourTitle: tour.title
-      }));
-    });
-
-    // Sort reviews by date (newest first) and apply pagination
-    const sortedReviews = pendingReviews.sort((a: any, b: any) => 
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
-
-    const paginatedReviews = sortedReviews.slice(skip, skip + limit);
-
-    res.status(200).json({
-      success: true,
-      data: {
-        reviews: paginatedReviews,
-        pagination: {
-          currentPage: page,
-          totalPages: Math.ceil(pendingReviews.length / limit),
-          totalItems: pendingReviews.length,
-          itemsPerPage: limit
-        }
-      }
-    });
-  } catch (err: any) {
-    console.error('Error in getPendingReviews:', err);
-    next(createHttpError(500, 'Failed to get pending reviews'));
-  }
-};
-
-// Get all reviews for a seller (regardless of status)
-export const getAllReviews = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    const _req = req as AuthRequest;
-    const userId = _req.userId;
-    
-    // Ensure user is authenticated
-    if (!userId) {
-      return next(createHttpError(401, 'You must be logged in to view reviews'));
-    }
-    
-    
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 50; // Increased limit to show more reviews
-    const skip = (page - 1) * limit;
-
-    // First, check if the user is an admin
-    const user = await userModel.findById(userId);
-    const isAdmin = user?.roles === 'admin';
-    
-
-    let tours;
-    if (isAdmin) {
-      // Admins can see all tours with reviews
-      tours = await tourModel.find({}).populate({
-        path: 'reviews.user',
-        select: 'name email profileImage roles'
-      }).populate({
-        path: 'reviews.replies.user',
-        select: 'name email profileImage roles'
-      });
-    } else {
-      // Regular sellers can only see their own tours with reviews
-      tours = await tourModel.find({ 
-        author: userId
-      }).populate({
-        path: 'reviews.user',
-        select: 'name email profileImage roles'
-      }).populate({
-        path: 'reviews.replies.user',
-        select: 'name email profileImage roles'
-      });
-    }
-
-
-    if (!tours || tours.length === 0) {
-      return res.status(200).json({
-        success: true,
-        message: 'No reviews found',
-        data: {
-          reviews: [],
-          pagination: {
-            currentPage: page,
-            totalPages: 0,
-            totalItems: 0,
-            itemsPerPage: limit
-          }
-        }
-      });
-    }
-
-    // Extract all reviews from all tours
-    const allReviews = [];
-    
-    // Loop through each tour and extract its reviews
-    for (const tour of tours) {
-      
-      if (tour.reviews && tour.reviews.length > 0) {
-        // Log each review for debugging
-       
-        
-        // Map each review to include the tour information
-        const tourReviews = tour.reviews.map((review: any) => {
-          const reviewObj = review.toObject ? review.toObject() : review;
-          return {
-            ...reviewObj,
-            tourId: tour._id,
-            tourTitle: tour.title
-          };
-        });
-        
-        // Add these reviews to our collection
-        allReviews.push(...tourReviews);
-      }
-    }
-    
-    
-    // Sort reviews by date (newest first) and apply pagination
-    const sortedReviews = allReviews.sort((a: any, b: any) => 
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
-
-    const paginatedReviews = sortedReviews.slice(skip, skip + limit);
-    console.log('Returning paginated reviews:', paginatedReviews.length);
-
-    res.status(200).json({
-      success: true,
-      data: {
-        reviews: paginatedReviews,
-        pagination: {
-          currentPage: page,
-          totalPages: Math.ceil(allReviews.length / limit),
-          totalItems: allReviews.length,
-          itemsPerPage: limit
-        }
-      }
-    });
-  } catch (err: any) {
-    console.error('Error in getAllReviews:', err);
-    next(createHttpError(500, 'Failed to get reviews'));
-  }
-};
-
-// Approve or reject a review
-export const updateReviewStatus = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    const { tourId, reviewId } = req.params;
-    const { status } = req.body; // 'approved' or 'rejected'
-    const _req = req as AuthRequest;
-    const sellerId = _req.userId;
-
-    // Validate inputs
-    if (!mongoose.Types.ObjectId.isValid(tourId) || !mongoose.Types.ObjectId.isValid(reviewId)) {
-      return next(createHttpError(400, 'Invalid tour or review ID'));
-    }
-
-    if (!status || !['approved', 'rejected'].includes(status)) {
-      return next(createHttpError(400, 'Status must be either "approved" or "rejected"'));
-    }
-
-    // Find the tour and ensure it belongs to the current user
-    const tour = await tourModel.findOne({ 
-      _id: tourId,
-      author: sellerId
-    });
-
-    if (!tour) {
-      return next(createHttpError(404, 'Tour not found or you are not authorized to manage this tour'));
-    }
-
-    // Find the review
-    const reviewIndex = tour.reviews.findIndex(
-      (review: any) => review._id.toString() === reviewId
-    );
-
-    if (reviewIndex === -1) {
-      return next(createHttpError(404, 'Review not found'));
-    }
-
-    // Update the review status
-    tour.reviews[reviewIndex].status = status;
-
-    // Save the tour - the pre-save hook will handle recalculating ratings
-    await tour.save();
-
-    res.status(200).json({
-      success: true,
-      message: `Review ${status === 'approved' ? 'approved' : 'rejected'} successfully`,
-      data: {
-        review: tour.reviews[reviewIndex],
-        averageRating: tour.averageRating,
-        reviewCount: tour.reviewCount,
-        approvedReviewCount: tour.approvedReviewCount || 0
-      }
-    });
-  } catch (err: any) {
-    console.error('Error in updateReviewStatus:', err);
-    next(createHttpError(500, `Failed to ${req.body.status} review`));
-  }
-};
-
-// Add a reply to a review
-export const addReviewReply = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    const { tourId, reviewId } = req.params;
-    const { comment } = req.body;
-    const _req = req as AuthRequest;
-    
-    // Ensure user is authenticated
-    if (!_req.userId) {
-      return next(createHttpError(401, 'You must be logged in to reply to a review'));
-    }
-
-    if (!mongoose.Types.ObjectId.isValid(tourId) || !mongoose.Types.ObjectId.isValid(reviewId)) {
-      return next(createHttpError(400, 'Invalid tour or review ID'));
-    }
-
-    if (!comment || comment.trim() === '') {
-      return next(createHttpError(400, 'Reply comment is required'));
-    }
-
-    const tour = await tourModel.findById(tourId);
-    if (!tour) {
-      return next(createHttpError(404, 'Tour not found'));
-    }
-
-    // Find the review
-    const reviewIndex = tour.reviews.findIndex(
-      (review: any) => review._id.toString() === reviewId
-    );
-
-    if (reviewIndex === -1) {
-      return next(createHttpError(404, 'Review not found'));
-    }
-
-    // Add the reply
-    const newReply = {
-      user: new mongoose.Types.ObjectId(_req.userId),
-      comment,
-      createdAt: new Date(),
-      likes: 0,
-      views: 0
-    };
-
-    tour.reviews[reviewIndex].replies.push(newReply);
-
-    // Save the tour
-    await tour.save();
-
-    // Populate the user data for the new reply
-    const populatedTour = await tourModel.findById(tourId)
-      .populate({
-        path: 'reviews.replies.user',
-        select: 'name email profileImage roles'
-      });
-
-    const updatedReview = populatedTour?.reviews[reviewIndex];
-    const newReplyWithUser = updatedReview?.replies[updatedReview.replies.length - 1];
-
-    res.status(200).json({
-      success: true,
-      message: 'Reply added successfully',
-      data: {
-        reply: newReplyWithUser
-      }
-    });
-  } catch (err: any) {
-    console.error('Error in addReviewReply:', err);
-    next(createHttpError(500, 'Failed to add reply'));
-  }
-};
-
-// Like a review
-export const likeReview = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    const { tourId, reviewId } = req.params;
-    const _req = req as AuthRequest;
-    
-    // Ensure user is authenticated
-    if (!_req.userId) {
-      return next(createHttpError(401, 'You must be logged in to like a review'));
-    }
-
-    if (!mongoose.Types.ObjectId.isValid(tourId) || !mongoose.Types.ObjectId.isValid(reviewId)) {
-      return next(createHttpError(400, 'Invalid tour or review ID'));
-    }
-
-    // Update the review's likes count
-    const result = await tourModel.updateOne(
-      { _id: tourId, "reviews._id": reviewId },
-      { $inc: { "reviews.$.likes": 1 } }
-    );
-
-    if (result.matchedCount === 0) {
-      return next(createHttpError(404, 'Tour or review not found'));
-    }
-
-    res.status(200).json({
-      success: true,
-      message: 'Review liked successfully'
-    });
-  } catch (err: any) {
-    console.error('Error in likeReview:', err);
-    next(createHttpError(500, 'Failed to like review'));
-  }
-};
-
-// Like a review reply
-export const likeReviewReply = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    const { tourId, reviewId, replyId } = req.params;
-    const _req = req as AuthRequest;
-    
-    // Ensure user is authenticated
-    if (!_req.userId) {
-      return next(createHttpError(401, 'You must be logged in to like a reply'));
-    }
-
-    if (!mongoose.Types.ObjectId.isValid(tourId) || 
-        !mongoose.Types.ObjectId.isValid(reviewId) ||
-        !mongoose.Types.ObjectId.isValid(replyId)) {
-      return next(createHttpError(400, 'Invalid IDs provided'));
-    }
-
-    // Find the tour
-    const tour = await tourModel.findById(tourId);
-    if (!tour) {
-      return next(createHttpError(404, 'Tour not found'));
-    }
-
-    // Find the review
-    const reviewIndex = tour.reviews.findIndex(
-      (review: any) => review._id.toString() === reviewId
-    );
-
-    if (reviewIndex === -1) {
-      return next(createHttpError(404, 'Review not found'));
-    }
-
-    // Find the reply
-    const replyIndex = tour.reviews[reviewIndex].replies.findIndex(
-      (reply: any) => reply._id.toString() === replyId
-    );
-
-    if (replyIndex === -1) {
-      return next(createHttpError(404, 'Reply not found'));
-    }
-
-    // Increment the likes count
-    tour.reviews[reviewIndex].replies[replyIndex].likes += 1;
-
-    // Save the tour
-    await tour.save();
-
-    res.status(200).json({
-      success: true,
-      message: 'Reply liked successfully'
-    });
-  } catch (err: any) {
-    console.error('Error in likeReviewReply:', err);
-    next(createHttpError(500, 'Failed to like reply'));
+    const tours = await tourModel.find({ tourStatus: 'Published', reviewCount: { $gt: 0 } })
+      .sort({ averageRating: -1 })
+      .limit(10)
+      .populate("author", "name roles");
+    res.status(200).json({ tours });
+  } catch (err) {
+    next(createHttpError(500, 'Failed to get top-rated tours'));
   }
 };
 

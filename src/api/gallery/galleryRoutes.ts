@@ -6,12 +6,7 @@ import { uploadMultiple, uploadNone } from "../../middlewares/multer";
 const galleryRoutes = express.Router();
 
 
-// const logRequest = (req: express.Request, res: express.Response, next: express.NextFunction) => {
-//     console.log('Request Body:', req.body);
-//     console.log('Files:', req.files);
-//     next();
-//   };
-//routes
+
 galleryRoutes.get('/media', authenticate as any, isAdminOrSeller as any, getMedia as any);
 galleryRoutes.get('/:publicId', getSingleMedia as any);
 galleryRoutes.post('/:userId/', authenticate as any, uploadMultiple, addMedia as any);

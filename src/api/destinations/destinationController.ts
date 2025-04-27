@@ -11,11 +11,30 @@ export const getAllDestinations = async (
   res: Response,
   next: NextFunction
 ) => {
+
   try {
     const destinations = await destinationModel.find();
     res.status(200).json({ destinations });
   } catch (err) {
     next(createHttpError(500, 'Failed to get destinations'));
+  }
+};
+
+export const getUserDestinations = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  const userId = req.userId;
+  const userRole = req.roles; // Assuming role is available in the request
+  try {
+    const destinations = userRole === 'admin' 
+      ? await destinationModel.find()
+      : await destinationModel.find({ userId });
+      
+    res.status(200).json({ destinations });
+  } catch (err) {
+    next(createHttpError(500, 'Failed to get user destinations'));
   }
 };
 
@@ -26,7 +45,6 @@ export const getDestination = async (
   next: NextFunction
 ) => {
   const destinationId = req.params.destinationId;
-  
   if (!mongoose.Types.ObjectId.isValid(destinationId)) {
     return res.status(400).json({ message: 'Invalid Destination ID' });
   }
@@ -36,6 +54,7 @@ export const getDestination = async (
       .findById(destinationId)
       .populate('featuredTours');
       
+
     if (!destination) {
       return next(createHttpError(404, "Destination not found."));
     }
@@ -52,8 +71,9 @@ export const createDestination = async (
   res: Response,
   next: NextFunction
 ) => {
-  const { name, description, coverImage, country, region, city, featuredTours } = req.body;
-  
+  const { name, description, coverImage, isActive, country, region, city, userId, featuredTours } = req.body;
+
+  console.log("featuredTours", featuredTours);
   try {
     const newDestination = await destinationModel.create({
       name,
@@ -63,11 +83,14 @@ export const createDestination = async (
       region,
       city,
       featuredTours: featuredTours || [],
-      popularity: 0
+      popularity: 0,
+      isActive,
+      userId,
     });
     
     res.status(201).json({ destination: newDestination });
   } catch (err) {
+    console.error(err);
     next(createHttpError(500, 'Failed to create destination'));
   }
 };
@@ -80,12 +103,33 @@ export const updateDestination = async (
 ) => {
   const destinationId = req.params.destinationId;
   const updates = req.body;
+
+  console.log("updates", updates);
   
   if (!mongoose.Types.ObjectId.isValid(destinationId)) {
     return res.status(400).json({ message: 'Invalid Destination ID' });
   }
   
   try {
+    // Process featuredTours - ensure it's treated as an array
+    if (updates.featuredTours && !Array.isArray(updates.featuredTours)) {
+      // If it's a single value or string, convert to array
+      if (typeof updates.featuredTours === 'string') {
+        updates.featuredTours = [updates.featuredTours];
+      } else if (updates.featuredTours['0']) {
+        // Handle FormData array format (where keys are '0', '1', etc.)
+        const tourIds: string[] = [];
+        let i = 0;
+        while (updates.featuredTours[i.toString()] !== undefined) {
+          tourIds.push(updates.featuredTours[i.toString()]);
+          i++;
+        }
+        updates.featuredTours = tourIds;
+      }
+    }
+
+    console.log("Processed featuredTours:", updates.featuredTours);
+
     const updatedDestination = await destinationModel.findByIdAndUpdate(
       destinationId,
       updates,
@@ -98,6 +142,7 @@ export const updateDestination = async (
     
     res.status(200).json({ destination: updatedDestination });
   } catch (err) {
+    console.error("Update error:", err);
     next(createHttpError(500, 'Failed to update destination'));
   }
 };

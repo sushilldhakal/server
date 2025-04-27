@@ -25,6 +25,76 @@ export interface PricingGroup {
   dateRanges: DateRange[];
 }
 
+// Define a notification for fixed departure tours
+export interface FixedDepartureNotification {
+  userId: mongoose.Types.ObjectId;
+  notificationType: 'booking_confirmation' | 'cancellation' | 'reminder' | 'update';
+  notifiedAt: Date;
+  isRead: boolean;
+}
+
+// Define fixed departure interface
+export interface FixedDeparture {
+  _id?: mongoose.Types.ObjectId;
+  tourId: mongoose.Types.ObjectId;
+  startDate: Date;
+  endDate: Date;
+  pricingCategory: 'standard' | 'premium' | 'budget' | 'custom';
+  customPricingCategory?: string;
+  price: number;
+  discountPrice?: number;
+  isDiscounted: boolean;
+  minPax: number;
+  maxPax: number;
+  currentPax: number;
+  cutOffHoursBefore: number;
+  isForceCanceled: boolean;
+  forceCancelReason?: string;
+  notifiedUsers: FixedDepartureNotification[];
+  status: 'scheduled' | 'in_progress' | 'completed' | 'canceled';
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Define AddOn interface
+export interface AddOn {
+  _id?: mongoose.Types.ObjectId;
+  name: string;
+  description: string;
+  price: number;
+  discountPrice?: number;
+  isDiscounted: boolean;
+  isRequired: boolean;
+  maxQuantity: number;
+  category: 'transportation' | 'accommodation' | 'activity' | 'meal' | 'equipment' | 'insurance' | 'guide' | 'other';
+  customCategory?: string;
+  image?: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Define PromoCode interface
+export interface PromoCode {
+  _id?: mongoose.Types.ObjectId;
+  code: string;
+  description: string;
+  discountType: 'percentage' | 'fixed';
+  discountValue: number;
+  maxDiscountAmount?: number;
+  minPurchaseAmount?: number;
+  startDate: Date;
+  endDate: Date;
+  maxUses?: number;
+  currentUses: number;
+  isActive: boolean;
+  applicableTours: mongoose.Types.ObjectId[] | 'all';
+  createdBy: mongoose.Types.ObjectId;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface Tour extends Document {
     title: string;
     description: string;
@@ -99,6 +169,9 @@ export interface Tour extends Document {
     averageRating: number;
     reviewCount: number;
     approvedReviewCount: number;
+    fixedDepartures: FixedDeparture[];
+    addOns?: AddOn[];
+    promoCodes?: PromoCode[];
     views: number;
     bookingCount: number;
     destination?: mongoose.Types.ObjectId;
@@ -160,6 +233,8 @@ export interface Destination extends Document {
     city?: string;
     popularity: number;
     featuredTours?: mongoose.Types.ObjectId[];
+    isActive: boolean;
+    userId: mongoose.Types.ObjectId;
     createdAt: Date;
     updatedAt: Date;
 }

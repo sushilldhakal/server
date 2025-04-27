@@ -20,6 +20,9 @@ const _config = {
   accessToken: process.env.ACCESS_TOKEN,
   openAIApiKey: process.env.OPENAI_API_KEY,
   openAIApiBaseUrl: process.env.OPENAI_API_BASE_URL,
+  
+  sendGridKey: process.env.SENDGRID_API_KEY,
+  
 };
 
 export const config = Object.freeze(_config);

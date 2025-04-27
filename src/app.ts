@@ -3,7 +3,7 @@ import globalErrorHandler from "./middlewares/globalErrorHandler";
 import userRouter from "./api/user/userRouter";
 import tourRouter from "./api/tours/tourRouter";
 import tourSearchRouter from "./api/tours/tourSearchRouter";
-// import destinationRouter from "./api/destinations/destinationRouter";
+import destinationRouter from "./api/destinations/destinationRouter";
 import cors from "cors";
 import { config } from "./config/config";
 import breadcrumbsMiddleware from "./middlewares/breadcrumbsMiddleware";
@@ -14,6 +14,8 @@ import categoryRouter from "./api/user/category/categoryRoutes";
 import factsRouter from "./api/user/facts/factsRoutes";
 import faqsRouter from "./api/user/faq/faqRouter";
 import postRouter from "./api/post/postRoute";
+import reviewRoutes from "./api/review/reviewRoutes";
+import fixedDepartureRouter from "./api/tours/fixedDepartureRouter";
 
 const app = express();
 
@@ -31,6 +33,8 @@ app.use(
     })
 );
 
+
+
 app.use(express.json());
 
 
@@ -45,7 +49,7 @@ app.get("/", (req, res) => {
 app.use("/api/users", userRouter);
 app.use("/api/tours",tourRouter);
 app.use("/api/tour/search",tourSearchRouter);
-// app.use("/api/destinations", destinationRouter);
+app.use("/api/destinations", destinationRouter);
 app.use('/api/subscribers', subscriberRouter);
 app.use("/api/gallery", galleryRoutes);
 app.use("/api/generate", generateRouter);
@@ -53,6 +57,8 @@ app.use("/api/category", categoryRouter);
 app.use("/api/posts", postRouter);
 app.use("/api/facts", factsRouter);
 app.use("/api/faqs", faqsRouter);
+app.use("/api/reviews", reviewRoutes);
+app.use("/api/fixed-departures", fixedDepartureRouter);
 // Global error handler
 app.use(globalErrorHandler);
 

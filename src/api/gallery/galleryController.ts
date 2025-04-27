@@ -153,7 +153,6 @@ const fetchResourceByPublicId = async (mediaType: string, publicId: string, owne
 export const getMedia = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { userId, roles } = req; // Assuming roles and userId are attached to the request object
-    console.log(req.query)
     const { pageSize = '10', page = '1', mediaType } = req.query;
     if (!['images', 'pdfs', 'videos'].includes(mediaType as string)) {
       return next(createHttpError(400, 'Invalid mediaType parameter'));
@@ -215,7 +214,6 @@ export const getMedia = async (req: AuthRequest, res: Response, next: NextFuncti
     totalVideos: mediaType === 'videos' ? videos.length : 0
     });
 
-    console.log(parsedPage, parsedPageSize, hasNextPage, responseMedia.length)
   } catch (error) {
     next(error);
   }
@@ -340,7 +338,6 @@ export const addMedia = async (req: AuthRequest, res: Response, next: NextFuncti
       const { userId, imageId } = req.params;
       const { description, title, tags } = req.body;
       const {mediaType} = req.query;
-      console.log(userId, imageId, mediaType)
       const gallery: GalleryDocument | null = await Gallery.findOne({ user: userId });
   
       if (!gallery) {
@@ -357,9 +354,6 @@ export const addMedia = async (req: AuthRequest, res: Response, next: NextFuncti
     } else {
       return res.status(400).json({ message: 'Invalid media type' });
     }
-    console.log("mediaItem",mediaItem)
-
-    console.log( req.body)
     // If the media item isn't found
     if (!mediaItem) {
       return res.status(404).json({ message: 'Media not found' });
@@ -385,8 +379,6 @@ export const addMedia = async (req: AuthRequest, res: Response, next: NextFuncti
 
 
 export const deleteMedia = async (req: AuthRequest, res: Response, next: NextFunction) => {
-
-  console.log(req.body);
   try {
     const { userId, roles } = req;
     const paramUserId = req.params.userId;

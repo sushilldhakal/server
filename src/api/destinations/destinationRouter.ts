@@ -6,21 +6,32 @@ import {
   updateDestination, 
   deleteDestination, 
   getToursByDestination,
-  getPopularDestinations
+  getPopularDestinations,
+  getUserDestinations
 } from './destinationController';
-import { authenticate } from "../../middlewares/authenticate";
+import { authenticate, AuthRequest } from "../../middlewares/authenticate";
 import { uploadNone } from "../../middlewares/multer";
 
 const destinationRouter = express.Router();
 
 // Public routes
-destinationRouter.get("/", getAllDestinations);
+destinationRouter.get("/", getAllDestinations as any);
+
 destinationRouter.get("/popular", getPopularDestinations);
-destinationRouter.get("/:destinationId", getDestination);
-destinationRouter.get("/:destinationId/tours", getToursByDestination);
+
+destinationRouter.get("/user", authenticate, getUserDestinations as any);
+
+
+destinationRouter.get("/:destinationId", getDestination as any);
+destinationRouter.get("/:destinationId/tours", getToursByDestination as any);
 
 // Protected routes (require authentication)
 destinationRouter.post("/", authenticate, uploadNone, createDestination);
+
+
+
+
+
 destinationRouter.patch("/:destinationId", authenticate, uploadNone, updateDestination);
 destinationRouter.delete("/:destinationId", authenticate, deleteDestination);
 

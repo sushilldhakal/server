@@ -259,7 +259,6 @@ export const getAllComments = async (req: Request, res: Response, next: NextFunc
       .limit(limit)
       .lean();
 
-      console.log("comments", comments)
 
     res.status(200).json({
       success: true,
@@ -280,7 +279,6 @@ export const getAllComments = async (req: Request, res: Response, next: NextFunc
 };
 export const getUnapprovedCommentsCount = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const _req = req as AuthRequest;
-  console.log("getUnapprovedCommentsCount")
   try {
     let unapprovedCount;
 

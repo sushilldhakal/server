@@ -2,8 +2,8 @@ import express from 'express';
 import { 
   createTour, deleteTour, getAllTours, getLatestTours, getTour, getUserTours, 
   searchTours, updateTour, getToursByRating, getDiscountedTours, getSpecialOfferTours, 
-  addReview, getTourReviews, getPendingReviews, getAllReviews, updateReviewStatus, addReviewReply, 
-  likeReview, likeReviewReply, incrementTourViews, incrementTourBookings 
+  incrementTourViews, incrementTourBookings, 
+  getUserToursTitle
 } from './tourController';
 import { authenticate } from "../../middlewares/authenticate";
 import { uploadNone } from "../../middlewares/multer";
@@ -30,16 +30,8 @@ tourRouter.get('/single/:tourId', (req, res, next) => {
   getTour(req, res, next);
 });
 
-// New review-related routes
-// Get pending reviews for a seller's tours
-tourRouter.get("/reviews/pending", authenticate, (req, res, next) => {
-  getPendingReviews(req, res, next);
-});
-
-// Get all reviews for a seller's tours (regardless of status)
-tourRouter.get("/reviews/all", authenticate, (req, res, next) => {
-  getAllReviews(req, res, next);
-});
+// Get tour titles by user ID
+tourRouter.get("/user/:userId/titles", authenticate, getUserToursTitle);
 
 // Get tours by user ID
 tourRouter.get("/user/:userId", authenticate, getUserTours);
@@ -67,35 +59,6 @@ tourRouter.get("/search", (req, res, next) => {
 // Get latest tours
 tourRouter.get("/latest", (req, res, next) => {
   getLatestTours(req, res, next);
-});
-
-// Review routes
-tourRouter.post("/:tourId/reviews", authenticate, (req, res, next) => {
-  addReview(req, res, next);
-});
-
-tourRouter.get("/:tourId/reviews", (req, res, next) => {
-  getTourReviews(req, res, next);
-});
-
-// Update review status (approve/reject)
-tourRouter.patch("/:tourId/reviews/:reviewId/status", authenticate, (req, res, next) => {
-  updateReviewStatus(req, res, next);
-});
-
-// Add reply to a review
-tourRouter.post("/:tourId/reviews/:reviewId/replies", authenticate, (req, res, next) => {
-  addReviewReply(req, res, next);
-});
-
-// Like a review
-tourRouter.post("/:tourId/reviews/:reviewId/like", authenticate, (req, res, next) => {
-  likeReview(req, res, next);
-});
-
-// Like a review reply
-tourRouter.post("/:tourId/reviews/:reviewId/replies/:replyId/like", authenticate, (req, res, next) => {
-  likeReviewReply(req, res, next);
 });
 
 // Increment tour view count

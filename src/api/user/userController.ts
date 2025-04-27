@@ -7,10 +7,11 @@ import { sign } from "jsonwebtoken";
 import { validationResult } from "express-validator";
 import { AuthRequest } from "../../middlewares/authenticate";
 import { config } from "../../config/config";
-import { sendResetPasswordEmail, sendVerificationEmail } from "../../controller/mailer";
+import { sendResetPasswordEmail, sendVerificationEmail } from "../../controller/sendGrid";
 // create user
 export const createUser = async (req: Request, res: Response, next: NextFunction) => {
   const { name, email, password, phone } = req.body;
+  console.log(req.body)
   if (!name || !email || !password) {
     const error = createHttpError(400, "All fields are required");
     return next(error);
@@ -41,12 +42,21 @@ export const createUser = async (req: Request, res: Response, next: NextFunction
       verified: false, 
     });
 
+    try {
       const verificationToken = jwt.sign({ sub: newUser._id }, config.jwtSecret, {
         expiresIn: '1h', // 1 hour
         algorithm: 'HS256',
       });
       await sendVerificationEmail(email, verificationToken);
       res.status(201).json({ message: 'Verification email sent. Please check your inbox.' });
+    } catch (emailError) {
+      console.error("Email sending failed:", emailError);
+      // Still create the user but notify about email failure
+      res.status(201).json({ 
+        message: 'User created successfully but verification email could not be sent. Please contact support.', 
+        user: { id: newUser._id, name: newUser.name, email: newUser.email }
+      });
+    }
    
   } catch (err) {
     return next(createHttpError(500, "Error while creating user"));
@@ -126,9 +136,9 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
     return res.status(400).json({ errors: errors.array() });
   }
 
-  const { name, email, roles, password } = req.body;
+  const { name, email, roles, password, phone } = req.body;
   const userId = req.params.userId;
-
+console.log(req.body)
   try {
     const user = await userModel.findOne({ _id: userId });
 
@@ -146,6 +156,7 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
       name: name || user.name,
       email: email || user.email,
       roles: roles || user.roles, // Ensure roles is handled as string
+      phone: phone || user.phone
     };
 
     if (password) {

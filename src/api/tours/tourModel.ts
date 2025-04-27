@@ -1,8 +1,7 @@
 import mongoose from "mongoose";
-
+import addOnSchema from "./addOnModel";
 import {Tour} from "./tourTypes";
-
-
+import promoCodeSchema from "./promoCodeModel";
 
 const itinerarySchema = new mongoose.Schema({
   day: {
@@ -71,6 +70,7 @@ const faqSchema = new mongoose.Schema({
 }, { _id: false });
 
 
+
 // Subschema for Reviews
 const reviewSchema = new mongoose.Schema({
   user: {
@@ -131,7 +131,6 @@ const reviewSchema = new mongoose.Schema({
       default: Date.now
   }
 }, { timestamps: true });
-
 // Subschema for Gallery
 const gallerySchema = new mongoose.Schema({
   image: {
@@ -292,6 +291,119 @@ const pricingGroupSchema = new mongoose.Schema({
   }
 }, { _id: false });
 
+// Subschema for Fixed Departure Dates
+const fixedDepartureSchema = new mongoose.Schema({
+  tourId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Tour',
+    required: true
+  },
+  startDate: {
+    type: Date,
+    required: true
+  },
+  endDate: {
+    type: Date,
+    required: true
+  },
+  pricingCategory: {
+    type: String,
+    required: true,
+    enum: ['standard', 'premium', 'budget', 'custom']
+  },
+  customPricingCategory: {
+    type: String,
+    required: function(this: any): boolean {
+      return this.pricingCategory === 'custom';
+    }
+  },
+  price: {
+    type: Number,
+    required: true,
+    min: 0
+  },
+  discountPrice: {
+    type: Number,
+    min: 0
+  },
+  isDiscounted: {
+    type: Boolean,
+    default: false
+  },
+  minPax: {
+    type: Number,
+    default: 1,
+    min: 1
+  },
+  maxPax: {
+    type: Number,
+    required: true,
+    min: 1
+  },
+  currentPax: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  cutOffHoursBefore: {
+    type: Number,
+    default: 24,
+    min: 0
+  },
+  isForceCanceled: {
+    type: Boolean,
+    default: false
+  },
+  forceCancelReason: {
+    type: String,
+    required: function(this: any): boolean {
+      return this.isForceCanceled === true;
+    }
+  },
+  notifiedUsers: [{
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    notificationType: {
+      type: String,
+      enum: ['booking_confirmation', 'cancellation', 'reminder', 'update']
+    },
+    notifiedAt: {
+      type: Date,
+      default: Date.now
+    },
+    isRead: {
+      type: Boolean,
+      default: false
+    }
+  }],
+  status: {
+    type: String,
+    enum: ['scheduled', 'in_progress', 'completed', 'canceled'],
+    default: 'scheduled'
+  },
+  isActive: {
+    type: Boolean,
+    default: true
+  },
+  applicableTours: {
+    type: [mongoose.Schema.Types.ObjectId],
+    ref: 'Tour',
+    default: 'all',
+    validate: {
+      validator: function(this: any, value: any) {
+        return value === 'all' || (Array.isArray(value) && value.length > 0);
+      },
+      message: 'Applicable tours must be "all" or a non-empty array of tour IDs'
+    }
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
+  }
+}, { timestamps: true });
+
 const tourSchema = new mongoose.Schema<Tour>(
   {
     title: {
@@ -421,6 +533,18 @@ const tourSchema = new mongoose.Schema<Tour>(
     approvedReviewCount: {
       type: Number,
       default: 0
+    },
+    fixedDepartures: {
+      type: [fixedDepartureSchema],
+      default: []
+    },
+    addOns: {
+      type: [addOnSchema],
+      default: []
+    },
+    promoCodes: {
+      type: [promoCodeSchema],
+      default: []
     }
   },
   { timestamps: true }

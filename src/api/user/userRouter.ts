@@ -22,6 +22,7 @@ userRouter.get('/all',authenticate, getAllUsers);
 userRouter.get('/:userId', [param('userId').isMongoId(), authenticate], getUserById);
 
 
+
 userRouter.patch(
   '/setting/:userId', uploadNone, authenticate as any, isAdminOrSeller as any, addOrUpdateSettings as any
 );
@@ -29,7 +30,7 @@ userRouter.get('/setting/:userId', authenticate, isAdminOrSeller as any, getUser
 // Add route for getting decrypted API keys
 userRouter.get('/setting/:userId/key', authenticate as any, isAdminOrSeller as any, getDecryptedApiKey as any);
 
-userRouter.put(
+userRouter.patch(
     '/:userId',authenticate,updateUser
   );
 
