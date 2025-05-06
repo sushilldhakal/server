@@ -8,6 +8,7 @@ import { validationResult } from "express-validator";
 import { AuthRequest } from "../../middlewares/authenticate";
 import { config } from "../../config/config";
 import { sendResetPasswordEmail, sendVerificationEmail } from "../../controller/sendGrid";
+
 // create user
 export const createUser = async (req: Request, res: Response, next: NextFunction) => {
   const { name, email, password, phone } = req.body;
@@ -136,9 +137,9 @@ export const updateUser = async (req: Request, res: Response, next: NextFunction
     return res.status(400).json({ errors: errors.array() });
   }
 
-  const { name, email, roles, password, phone } = req.body;
   const userId = req.params.userId;
-console.log(req.body)
+  console.log(req.body);
+
   try {
     const user = await userModel.findOne({ _id: userId });
 
@@ -152,31 +153,130 @@ console.log(req.body)
       return next(createHttpError(403, "You cannot update other users."));
     }
 
-    const updateData: any = {
-      name: name || user.name,
-      email: email || user.email,
-      roles: roles || user.roles, // Ensure roles is handled as string
-      phone: phone || user.phone
-    };
+    // Check if this is a seller application
+    const isSellerApplication = req.body.companyName && req.body.companyRegistrationNumber && req.body.sellerType;
 
-    if (password) {
-      const salt = await bcrypt.genSalt(10);
-      updateData.password = await bcrypt.hash(password, salt);
+    if (isSellerApplication) {
+      // If this is a seller application, store data in the sellerInfo field
+      // Construct the seller info object from the request body
+      const sellerInfo = {
+        companyName: req.body.companyName,
+        companyRegistrationNumber: req.body.companyRegistrationNumber,
+        companyType: req.body.companyType,
+        registrationDate: req.body.registrationDate,
+        taxId: req.body.taxId,
+        website: req.body.website || '',
+        businessAddress: {
+          address: req.body.address,
+          city: req.body.city,
+          state: req.body.state,
+          postalCode: req.body.postalCode,
+          country: req.body.country,
+        },
+        bankDetails: {
+          bankName: req.body.bankName,
+          accountNumber: req.body.accountNumber,
+          accountHolderName: req.body.accountHolderName,
+          branchCode: req.body.branchCode,
+        },
+        businessDescription: req.body.businessDescription,
+        sellerType: req.body.sellerType,
+        isApproved: false, // Default to not approved
+        appliedAt: new Date(),
+      };
+
+      // Update user with seller info and keep existing role as 'user' until approved
+      const updatedUser = await userModel.findOneAndUpdate(
+        { _id: userId },
+        { 
+          sellerInfo: sellerInfo
+          // Don't change the role to 'seller' yet - this will happen when admin approves
+        },
+        { new: true }
+      );
+      
+      return res.json({
+        user: updatedUser,
+        message: "Seller application submitted successfully. It will be reviewed by our team."
+      });
+    } else {
+      // Regular user update
+      const { name, email, roles, password, phone } = req.body;
+      
+      const updateData: any = {
+        name: name || user.name,
+        email: email || user.email,
+        roles: roles || user.roles,
+        phone: phone || user.phone
+      };
+
+      if (password) {
+        const salt = await bcrypt.genSalt(10);
+        updateData.password = await bcrypt.hash(password, salt);
+      }
+
+      const updatedUser = await userModel.findOneAndUpdate(
+        { _id: userId },
+        updateData,
+        { new: true }
+      );
+      res.json(updatedUser);
     }
-
-    const updatedUser = await userModel.findOneAndUpdate(
-      { _id: userId },
-      updateData,
-      { new: true }
-    );
-    res.json(updatedUser);
   } catch (err) {
     console.error('Error while updating user:', err);
     next(createHttpError(500, "Error while updating user"));
   }
 };
 
-  // Delete a user by ID
+// Approve a seller application (admin only)
+export const approveSellerApplication = async (req: Request, res: Response, next: NextFunction) => {
+  const userId = req.params.userId;
+
+  try {
+    const user = await userModel.findOne({ _id: userId });
+
+    if (!user) {
+      return next(createHttpError(404, "User not found"));
+    }
+
+    const _req = req as AuthRequest;
+    // Only admin can approve seller applications
+    if (_req.roles !== "admin") {
+      return next(createHttpError(403, "Only admin can approve seller applications"));
+    }
+
+    // Check if user has a seller application
+    if (!user.sellerInfo) {
+      return next(createHttpError(400, "User has not submitted a seller application"));
+    }
+
+    // Check if already approved
+    if (user.sellerInfo.isApproved) {
+      return next(createHttpError(400, "Seller application already approved"));
+    }
+
+    // Update the user to be a seller and mark application as approved
+    const updatedUser = await userModel.findOneAndUpdate(
+      { _id: userId },
+      { 
+        roles: 'seller',
+        'sellerInfo.isApproved': true,
+        'sellerInfo.approvedAt': new Date()
+      },
+      { new: true }
+    );
+
+    res.json({
+      user: updatedUser,
+      message: "Seller application approved successfully"
+    });
+  } catch (err) {
+    console.error('Error while approving seller application:', err);
+    next(createHttpError(500, "Error while approving seller application"));
+  }
+};
+
+// Delete a user by ID
 export const deleteUser = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const user = await userModel.findById(req.params.id);

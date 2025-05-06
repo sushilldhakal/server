@@ -80,6 +80,7 @@ export const updateFacts = async (req: AuthRequest, res: Response, next: NextFun
         const userId = req.userId;  // Assuming user ID is available in the request
         const { factId } = req.params;
         const { name, field_type, value, icon } = req.body;
+        console.log("req.body", req.body)
         const facts = await Facts.findById(factId);
         if (!facts) {
             return res.status(404).json({ message: 'Fact not found' });

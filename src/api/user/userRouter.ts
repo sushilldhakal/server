@@ -1,6 +1,18 @@
 import { addOrUpdateSettings, getDecryptedApiKey, getUserSettings } from './userSettingController';
 import express from "express";
-import { getAllUsers, getUserById, createUser, loginUser, updateUser, deleteUser, changeUserRole, verifyUser, forgotPassword, resetPassword} from "./userController";
+import { 
+  getAllUsers, 
+  getUserById, 
+  createUser, 
+  loginUser, 
+  updateUser, 
+  deleteUser, 
+  changeUserRole, 
+  verifyUser, 
+  forgotPassword, 
+  resetPassword,
+  approveSellerApplication
+} from "./userController";
 import { uploadAvatar, getUserAvatar } from './userAvatarController';
 import { body, param } from 'express-validator';
 import {authenticate, isAdminOrSeller} from "../../middlewares/authenticate";
@@ -37,6 +49,9 @@ userRouter.patch(
 userRouter.delete('/:userId',[param('id').isMongoId(), authenticate], deleteUser);
 
 userRouter.post('/change-role',authenticate, changeUserRole);
+
+// New route for approving seller applications (admin only)
+userRouter.post('/:userId/approve-seller', [param('userId').isMongoId(), authenticate], approveSellerApplication);
 
 userRouter.post('/login/verify',[
   body('token').notEmpty()

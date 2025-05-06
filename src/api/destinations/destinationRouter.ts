@@ -9,7 +9,7 @@ import {
   getPopularDestinations,
   getUserDestinations
 } from './destinationController';
-import { authenticate, AuthRequest } from "../../middlewares/authenticate";
+import { authenticate } from "../../middlewares/authenticate";
 import { uploadNone } from "../../middlewares/multer";
 
 const destinationRouter = express.Router();

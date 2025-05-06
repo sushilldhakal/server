@@ -52,7 +52,7 @@ export const getDestination = async (
   try {
     const destination = await destinationModel
       .findById(destinationId)
-      .populate('featuredTours');
+      .populate('featuredTours', '_id title')  // Only populate _id and title fields
       
 
     if (!destination) {

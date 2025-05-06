@@ -15,7 +15,8 @@ import factsRouter from "./api/user/facts/factsRoutes";
 import faqsRouter from "./api/user/faq/faqRouter";
 import postRouter from "./api/post/postRoute";
 import reviewRoutes from "./api/review/reviewRoutes";
-import fixedDepartureRouter from "./api/tours/fixedDepartureRouter";
+// import fixedDepartureRouter from "./api/tours/fixedDepartureRouter";
+// import schemaRoutes from "./api/tours/schemaRoutes";
 
 const app = express();
 
@@ -58,7 +59,8 @@ app.use("/api/posts", postRouter);
 app.use("/api/facts", factsRouter);
 app.use("/api/faqs", faqsRouter);
 app.use("/api/reviews", reviewRoutes);
-app.use("/api/fixed-departures", fixedDepartureRouter);
+// app.use("/api/fixed-departures", fixedDepartureRouter);
+// app.use("/api/schema", schemaRoutes);
 // Global error handler
 app.use(globalErrorHandler);
 

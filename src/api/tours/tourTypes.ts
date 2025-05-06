@@ -4,10 +4,19 @@ import {User} from "../user/userTypes";
 // Define pricing option interface
 export interface PricingOption {
   name: string;
+  category: string; // "adult", "child", "senior", "student", "custom"
+  customCategory?: string;
   price: number;
-  saleEnabled?: boolean;
-  salePrice?: number;
-  paxRange?: [number, number]; // [min, max] number of people
+  discountEnabled: boolean;
+  discountPrice?: number;
+  discountDateRange?: {
+    from: Date;
+    to: Date;
+  };
+  paxRange: {
+    from: number;
+    to: number;
+  };
 }
 
 // Define date range interface
@@ -95,8 +104,46 @@ export interface PromoCode {
   updatedAt: Date;
 }
 
+export interface paxRange {
+  minSize: number;
+  maxSize: number;
+}
+
+export interface Departure {
+  id: string;
+  label: string;
+  dateRange: {
+    from: Date;
+    to: Date;
+  };
+  selectedPricingOptions: Array<string | {
+    id: string;
+    name: string;
+    category: string;
+    price: number;
+  }>;
+  isRecurring: boolean;
+  recurrencePattern?: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly';
+  recurrenceEndDate?: Date;
+  capacity?: number;
+  priceLockedUntil?: Date;
+}
+
+export interface UnifiedTourDates {
+  days?: number;
+  nights?: number;
+  scheduleType: 'flexible' | 'fixed' | 'recurring';
+  defaultDateRange?: {
+    from: Date;
+    to: Date;
+  };
+  departures: Departure[];
+  priceLockedUntil?: Date;
+}
+
 export interface Tour extends Document {
     title: string;
+    excerpt: string;
     description: string;
     author: mongoose.Types.ObjectId | User;
     code: string;
@@ -109,8 +156,35 @@ export interface Tour extends Document {
     groupSize?: number;
     saleEnabled?: boolean;
     salePrice?: number;
+    // Discount specific fields
+    discountEnabled?: boolean;
+    discountPrice?: number;
+    discountDateRange?: {
+        from: Date;
+        to: Date;
+    };
+    paxRange?: {
+        minSize: number;
+        maxSize: number;
+    };
     pricingOptionsEnabled?: boolean;
     pricingGroups?: PricingGroup[];
+    pricingOptions?: Array<{
+        name: string;
+        category: string;
+        customCategory?: string;
+        price: number;
+        discountEnabled: boolean;
+        discountPrice?: number;
+        discountDateRange?: {
+            from: Date;
+            to: Date;
+        };
+        paxRange: {
+            from: number;
+            to: number;
+        };
+    }>;
     authorName: User;
     coverImage: string;
     file: string;
@@ -166,22 +240,65 @@ export interface Tour extends Document {
     enquiry: boolean;
     discount?: Discount;
     isSpecialOffer: boolean;
-    averageRating: number;
-    reviewCount: number;
-    approvedReviewCount: number;
-    fixedDepartures: FixedDeparture[];
+    destination?: mongoose.Types.ObjectId | null;
+    views?: number;
+    bookingCount?: number;
+    averageRating?: number;
+    reviewCount?: number;
+    approvedReviewCount?: number;
+    hasDiscount?: boolean;
+    discountPercentage?: number;
+    discountAmount?: number;
+    discountedPrice?: number;
     addOns?: AddOn[];
     promoCodes?: PromoCode[];
-    views: number;
-    bookingCount: number;
-    destination?: mongoose.Types.ObjectId;
+    fixedDepartures?: FixedDeparture[];
+    // Legacy date fields (for backward compatibility)
+    fixedDeparture?: boolean;
+    multipleDates?: boolean;
+    tourDates?: {
+      days?: number;
+      nights?: number;
+      dateRange?: {
+        from: Date;
+        to: Date;
+      };
+      isRecurring?: boolean;
+      recurrencePattern?: string;
+      recurrenceEndDate?: Date;
+    };
+    fixedDate?: {
+      dateRange?: {
+        from: Date;
+        to: Date;
+      };
+    };
+    dateRanges?: Array<{
+      id?: string;
+      label: string;
+      dateRange: {
+        from: Date;
+        to: Date;
+      };
+      selectedPricingOptions: Array<string | {
+        id: string;
+        name: string;
+        category: string;
+        price: number;
+      }>;
+      isRecurring: boolean;
+      recurrencePattern?: string;
+      recurrenceEndDate?: Date;
+    }>;
     
-    // Discount-related methods
-    hasActiveDiscount(): boolean;
-    getDiscountedPrice(): number;
-    getDiscountPercentage(): number;
-    getDiscountAmount(): number;
-    discountedPrice?: number; // Virtual property
+    // New unified tour dates structure
+    unifiedTourDates?: UnifiedTourDates;
+    
+    // Virtual Methods
+    hasActiveDiscount?: () => boolean;
+    getDiscountPercentage?: () => number;
+    getDiscountAmount?: () => number;
+    getDiscountedPrice?: () => number;
 }
 
 export interface ReviewReply {
@@ -206,14 +323,12 @@ export interface Review {
 }
 
 export interface Discount {
-    percentage: number;
-    startDate: Date;
-    endDate: Date;
-    isActive: boolean;
-    description?: string;
-    discountCode?: string;
-    minPurchaseAmount?: number;
-    maxDiscountAmount?: number;
+  discountEnabled: boolean;
+    discountPrice: number;
+    discountDateRange: {
+      from: Date;
+      to: Date;
+    };
     createdAt: Date;
     updatedAt: Date;
 }

@@ -1,7 +1,76 @@
 import mongoose from "mongoose";
 import { User } from "./userTypes";
 
-
+// Schema for seller information (nested within user)
+const sellerInfoSchema = new mongoose.Schema({
+  companyName: {
+    type: String,
+  },
+  companyRegistrationNumber: {
+    type: String,
+  },
+  companyType: {
+    type: String,
+  },
+  registrationDate: {
+    type: String,
+  },
+  taxId: {
+    type: String,
+  },
+  website: {
+    type: String,
+    default: ''
+  },
+  businessAddress: {
+    address: {
+      type: String,
+    },
+    city: {
+      type: String,
+    },
+    state: {
+      type: String,
+    },
+    postalCode: {
+      type: String,
+    },
+    country: {
+      type: String,
+    }
+  },
+  bankDetails: {
+    bankName: {
+      type: String,
+    },
+    accountNumber: {
+      type: String,
+    },
+    accountHolderName: {
+      type: String,
+    },
+    branchCode: {
+      type: String,
+    }
+  },
+  businessDescription: {
+    type: String,
+  },
+  sellerType: {
+    type: String,
+  },
+  isApproved: {
+    type: Boolean,
+    default: false
+  },
+  appliedAt: {
+    type: Date,
+    default: Date.now
+  },
+  approvedAt: {
+    type: Date
+  }
+});
 
 const userSchema = new mongoose.Schema<User>({
     name: {
@@ -46,7 +115,8 @@ const userSchema = new mongoose.Schema<User>({
       verified : {
         type: Boolean,
         default: false
-      }
+      },
+      sellerInfo: sellerInfoSchema // Add seller information schema
 },
     {timestamps: true},
 );
