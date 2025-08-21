@@ -134,27 +134,42 @@ export const getAllUserPosts = async (req: Request, res: Response, next: NextFun
 
 
 // Get a specific post by ID
-export const getPost = async (req: Request,
-  res: Response,
-  next: NextFunction): Promise<void> => {
+export const getPost = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { postId } = req.params;
-    const post = await Post.findById(postId).populate("author", "name").populate('comments');
+    
+    const post = await Post.findById(postId)
+      .populate("author", "name avatar")
+      .populate({
+        path: 'comments',
+        populate: {
+          path: 'user',
+          select: 'name avatar' // Only include necessary user fields
+        }
+      })
+      .populate({
+        path: 'comments.replies',
+        populate: {
+          path: 'user',
+          select: 'name avatar'
+        }
+      });
+
     if (!post) {
       res.status(404).json({ message: 'Post not found' });
       return;
     }
+
     const breadcrumbs = [
       {
-        label: post.title, // Use tour title for breadcrumb label
-        url: `/${postId}`, // Example URL
+        label: post.title,
+        url: `/${postId}`,
       }
     ];
-    if (!breadcrumbs.length) {
-      return next(createHttpError(404, 'Failed to get breadcrumbs'));
-    }
-    res.status(200).json({ post,  breadcrumbs});
+
+    res.status(200).json({ post, breadcrumbs });
   } catch (err) {
+    console.error('Error in getPost:', err);
     next(createHttpError(500, 'Failed to get post'));
   }
 };

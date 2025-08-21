@@ -4,6 +4,7 @@ import { config } from "../../config/config";
 import OpenAI from "openai";
 import { AuthRequest } from "../../middlewares/authenticate";
 import UserSettings from "../user/userSettingModel";
+import { decrypt } from "../../utils/encryption";
 
 // const openai = new OpenAI({
 //     apiKey: config.openAIApiKey,
@@ -32,9 +33,22 @@ const limiter = rateLimit({
         return res.status(410).json({ error: 'Missing OpenAI API key' });
     }
 
-     // Initialize OpenAI client with the retrieved API key
+     // Decrypt the OpenAI API key before using it
+     const decryptedApiKey = decrypt(settings.openaiApiKey);
+     
+     // Check if decryption was successful
+     if (!decryptedApiKey) {
+       // Fallback to environment variable if decryption fails
+       if (process.env.OPENAI_API_KEY) {
+         console.log('Using fallback OpenAI API key from environment');
+       } else {
+         return res.status(400).json({ error: 'Could not decrypt API key and no fallback available' });
+       }
+     }
+
+     // Initialize OpenAI client with the decrypted API key or fallback
      const openai = new OpenAI({
-      apiKey: settings.openaiApiKey,
+      apiKey: decryptedApiKey,
       baseURL: config.openAIApiBaseUrl || "https://api.openai.com/v1",
   });
   

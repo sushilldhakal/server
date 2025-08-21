@@ -108,4 +108,6 @@ reviewSchema.pre('findOneAndDelete', function() {
     this.constructor.calculateAverageRating(this.tour);
 });
 
+// Export the schema so it can be used by other models
+export { reviewSchema };
 export const Review = mongoose.model<IReview>('Review', reviewSchema);

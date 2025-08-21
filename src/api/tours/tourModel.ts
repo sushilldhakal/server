@@ -1,6 +1,5 @@
 import mongoose from 'mongoose';
 import {Tour} from "./tourTypes";
-import promoCodeSchema from "./promoCodeModel";
 import paxSchema from "./schemas/paxSchema";
 // Import all schemas from the schemas directory
 import {
@@ -68,6 +67,9 @@ const tourSchema = new mongoose.Schema<Tour>(
     coverImage: {
       type: String,
     },
+    file: {
+      type: String,
+    },
     outline: {
       type: String,
     },
@@ -75,12 +77,17 @@ const tourSchema = new mongoose.Schema<Tour>(
       type: [itinerarySchema],
       default: [],
     },
-    include: String,
-    exclude: String,
+    include: {
+      type: [String],
+      default: [],
+    },
+    exclude: {
+      type: [String],
+      default: [],
+    },
     facts: [factSchema],
     faqs: [faqSchema],
     gallery: [gallerySchema],
-    map: String,
     location: {
       type: locationSchema
     },
@@ -116,11 +123,6 @@ const tourSchema = new mongoose.Schema<Tour>(
     fixedDepartures: [{
       type: mongoose.Schema.Types.Mixed
     }],
-    promoCodes: {
-      type: [promoCodeSchema],
-      default: []
-    },
-    
     // Pricing-related fields
     price: {
       type: Number,
@@ -131,7 +133,20 @@ const tourSchema = new mongoose.Schema<Tour>(
     },
     groupSize: {
       type: Number,
-      min: 1
+      required: function(this: any): boolean {
+        // Only required when pricing is set to "Group" (pricePerPerson = false)
+        return this.pricePerPerson === false;
+      },
+      validate: {
+        validator: function(this: any, value: number): boolean {
+          // Only validate minimum when required (i.e., when pricePerPerson is false)
+          if (this.pricePerPerson === false && value !== undefined && value !== null) {
+            return value >= 1;
+          }
+          return true; // Skip validation when pricePerPerson is true or value is undefined
+        },
+        message: 'Group size must be at least 1 when pricing is per group'
+      }
     },
     paxRange: {
       type: paxSchema,
@@ -199,6 +214,8 @@ const tourSchema = new mongoose.Schema<Tour>(
 tourSchema.index({ tourStatus: 1, destination: 1 });
 tourSchema.index({ tourStatus: 1, category: 1 });
 tourSchema.index({ tourStatus: 1, isSpecialOffer: 1 });
+
+// Index removed - already defined in reviewSchema to avoid duplication
 
 // Text index for full-text search
 tourSchema.index(

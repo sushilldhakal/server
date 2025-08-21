@@ -21,7 +21,8 @@ const tourDatesSchema = new mongoose.Schema({
   defaultDateRange: {
     type: dateRangeSchema,
     required: function(this: any) {
-      return this.scheduleType === 'flexible';
+      // Only require defaultDateRange if scheduleType is flexible AND fixedDeparture is false
+      return this.scheduleType === 'flexible' && this.fixedDeparture === false;
     }
   },
   departures: {

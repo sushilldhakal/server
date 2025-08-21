@@ -1,6 +1,10 @@
 import mongoose from 'mongoose';
 
 const locationSchema = new mongoose.Schema({
+  map: {
+    type: String,
+    default: ''
+  },
   street: {
     type: String,
     trim: true
@@ -27,6 +31,10 @@ const locationSchema = new mongoose.Schema({
       },
       message: 'Latitude must be between -90 and 90'
     }
+  },
+  zip: {
+    type: Number,
+    trim: true
   },
   lng: {
     type: Number,

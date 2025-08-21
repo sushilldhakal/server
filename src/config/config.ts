@@ -18,7 +18,7 @@ const _config = {
   clientSecret: process.env.CLIENT_SECRET,
   refreshToken: process.env.REFRESH_TOKEN,
   accessToken: process.env.ACCESS_TOKEN,
-  openAIApiKey: process.env.OPENAI_API_KEY,
+  // openAIApiKey: process.env.OPENAI_API_KEY,
   openAIApiBaseUrl: process.env.OPENAI_API_BASE_URL,
   
   sendGridKey: process.env.SENDGRID_API_KEY,

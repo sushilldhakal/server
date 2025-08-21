@@ -40,6 +40,8 @@ export const getTourRating = async (req: Request, res: Response) => {
 
 // Get all approved reviews (public endpoint for guest users)
 export const getAllApprovedReviews = async (req: Request, res: Response) => {
+
+    console.log("getAllApprovedReviews")
     try {
         const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
         
@@ -53,6 +55,11 @@ export const getAllApprovedReviews = async (req: Request, res: Response) => {
                 path: 'reviews.user',
                 select: 'name email profileImage'
             })
+            .populate({
+                path: 'reviews.replies.user',
+                select: 'name email profileImage'
+            })
+            .setOptions({ strictPopulate: false }) // Added to fix StrictPopulateError
             .lean();
         
         // Extract all approved reviews from all tours
@@ -180,6 +187,7 @@ export const addReview = async (req: Request, res: Response) => {
 
 // Get reviews for a tour (using embedded reviews in tour model)
 export const getTourReviews = async (req: Request, res: Response) => {
+    console.log("Getting reviews for tour:", req.params.tourId);
     try {
         const { tourId } = req.params;
         const page = parseInt(req.query.page as string) || 1;
@@ -191,15 +199,13 @@ export const getTourReviews = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'Invalid tour ID' });
         }
 
+        // Find the tour with populated user info but handle replies more carefully
         const tour = await Tour.findById(tourId)
             .populate({
                 path: 'reviews.user',
                 select: 'name email profileImage roles'
             })
-            .populate({
-                path: 'reviews.replies.user',
-                select: 'name email profileImage roles'
-            });
+            // Removed the problematic populate for replies.user since it's not in the schema;
 
         if (!tour) {
             return res.status(404).json({ message: 'Tour not found' });

@@ -6,7 +6,7 @@ import { default as userModel } from '../user/userModel';
 import cloudinary from '../../config/cloudinary';
 import { AuthRequest } from "../../middlewares/authenticate";
 import mongoose from 'mongoose';
-import { FactValue } from './tourTypes';
+import { Discount, PricingOption, DateRange, Tour, FactValue } from './tourTypes';
 import { paginate, PaginationParams } from '../../utils/pagination';
 
 // Helper functions for handling common data types
@@ -27,23 +27,724 @@ const parseJsonField = <T>(jsonString: string | any, defaultValue: T): T => {
     return defaultValue;
   }
 };
-
-interface DateRange {
-  from?: Date;
-  to?: Date;
-  startDate?: Date;
-  endDate?: Date;
-}
-
-const ensureDateRange = (dateRange: DateRange | any): { from: Date; to: Date } => {
+/**
+ * Ensures a consistent date range format for use in the controller
+ * Handles both internal format (from/to) and imported DateRange format (startDate/endDate)
+ * Returns an object with from and to properties as dates
+ */
+const ensureDateRange = (dateRange: any): { from: Date; to: Date } => {
   if (!dateRange) return { from: new Date(), to: new Date() };
   
+  // Create default dates - current date for from, one month later for to
+  const defaultFrom = new Date();
+  const defaultTo = new Date();
+  defaultTo.setMonth(defaultTo.getMonth() + 1);
+  
   return {
+    // Handle both formats: from/to (internal) and startDate/endDate (from tourTypes.ts)
     from: dateRange.from ? new Date(dateRange.from) : 
-          dateRange.startDate ? new Date(dateRange.startDate) : new Date(),
+          dateRange.startDate ? new Date(dateRange.startDate) : defaultFrom,
     to: dateRange.to ? new Date(dateRange.to) : 
-        dateRange.endDate ? new Date(dateRange.endDate) : new Date()
+        dateRange.endDate ? new Date(dateRange.endDate) : defaultTo
   };
+};
+
+// Helper function to process category data
+const processCategoryData = (category: any): Array<any> => {
+  try {
+    console.log('Raw category data received:', JSON.stringify(category, null, 2));
+    
+    // Check for the special case where we have a mixed object with numbered keys and an empty string key
+    if (category && typeof category === 'object' && !Array.isArray(category) && category[''] && typeof category[''] === 'string') {
+      try {
+        // Use the JSON string from the empty key
+        return JSON.parse(category['']).map((cat: any) => {
+          if (cat && cat.value) {
+            return {
+              value: cat.value,
+              label: cat.label,
+              categoryId: new mongoose.Types.ObjectId(cat.value),
+              categoryName: cat.label
+            };
+          }
+          return null;
+        }).filter(Boolean);
+      } catch (e) {
+        console.error('Error parsing category from empty key:', e);
+        // Continue with other methods if this fails
+      }
+    }
+    
+    // Parse the category if it's a string
+    let categoryArray;
+    if (typeof category === 'string') {
+      try {
+        categoryArray = JSON.parse(category);
+      } catch (e) {
+        console.error('Error parsing category string:', e);
+        categoryArray = [];
+      }
+    } else if (Array.isArray(category)) {
+      categoryArray = category;
+    } else if (typeof category === 'object') {
+      // Try to extract values from object that might have numeric keys
+      categoryArray = Object.values(category)
+        .filter(item => item && typeof item === 'object' && 'value' in item && 'label' in item);
+    } else {
+      categoryArray = [];
+    }
+    
+    // Handle the array of objects with label and value properties
+    const processedCategory = categoryArray.map((cat: any) => {
+      if (cat && cat.value) {
+        const catId = cat.value || cat.categoryId || '';
+        const catName = cat.label || cat.categoryName || 'Category';
+        
+        return {
+          // Include both original value/label (required by schema validation)
+          value: catId,
+          label: catName,
+          // Also include categoryId/categoryName for internal use
+          categoryId: new mongoose.Types.ObjectId(catId),
+          categoryName: catName
+        };
+      }
+      
+      // Fallback for invalid categories
+      const id = new mongoose.Types.ObjectId().toString();
+      return {
+        value: id,
+        label: 'Category',
+        categoryId: new mongoose.Types.ObjectId(id),
+        categoryName: 'Category'
+      };
+    });
+    
+    console.log('Processed category:', processedCategory);
+    return processedCategory;
+  } catch (error) {
+    console.error("Error processing category:", error);
+    return [];
+  }
+};
+
+// Helper function to process itinerary data
+const processItineraryData = (itinerary: any): Array<{
+    day: string;
+    title: string;
+    description: string;
+    dateTime: Date;
+  }> => {
+  try {
+    console.log('Raw itinerary data received:', typeof itinerary);
+    
+    // Parse the itinerary if it's a string
+    let itineraryArray;
+    if (typeof itinerary === 'string') {
+      try {
+        itineraryArray = JSON.parse(itinerary);
+        console.log('Successfully parsed itinerary string');
+      } catch (e) {
+        console.error('Error parsing itinerary string:', e);
+        return [];
+      }
+    } else if (Array.isArray(itinerary)) {
+      itineraryArray = itinerary;
+    } else {
+      console.warn('Itinerary is not an array or string:', itinerary);
+      return [];
+    }
+    
+    // Process itinerary data
+    return itineraryArray.map((item: any) => ({
+      ...item,
+      day: item.day || '1',
+      title: item.title || '',
+      description: item.description || '',
+      dateTime: item.dateTime ? new Date(item.dateTime) : new Date()
+    }));
+  } catch (error) {
+    console.error("Error processing itinerary:", error);
+    return [];
+  }
+};
+
+// Helper function to process pricing options
+const processPricingOptions = (pricingOptions: any): PricingOption[] => {
+  let parsedPricingOptions: PricingOption[] = [];
+  if (!pricingOptions) return parsedPricingOptions;
+  
+  let pricingArray;
+  try {
+    // Parse if it's a string
+    pricingArray = typeof pricingOptions === 'string' ? JSON.parse(pricingOptions) : pricingOptions;
+    
+    // Check if it's valid array data
+    if (!Array.isArray(pricingArray)) {
+      console.warn('PricingOptions is not an array:', pricingArray);
+      return parsedPricingOptions;
+    }
+    
+    parsedPricingOptions = pricingArray.map((option: any) => {
+      // Process discount date range
+      let processedDiscountDateRange = { from: new Date(), to: new Date() };
+      try {
+        const rawDiscountDateRange = option.discountDateRange || { from: new Date(), to: new Date() };
+        processedDiscountDateRange = ensureDateRange(rawDiscountDateRange);
+      } catch (e) {
+        console.error('Error processing discount date range:', e);
+      }
+      
+      // Create the pricing option with the correct structure
+      return {
+        name: option.name || '',
+        category: option.category || 'adult',
+        customCategory: option.customCategory || '',
+        price: Number(option.price) || 0,
+        discountEnabled: convertToBoolean(option.discountEnabled),
+        discountPrice: Number(option.discountPrice) || 0,
+        discountDateRange: processedDiscountDateRange,
+        paxRange: {
+          from: Number(option.paxRange?.from) || 1,
+          to: Number(option.paxRange?.to) || 10
+        }
+      };
+    });
+    
+    return parsedPricingOptions;
+  } catch (error) {
+    console.error("Error processing pricing options:", error);
+    return [];
+  }
+};
+
+// Helper function for processing numeric fields with default values
+const processNumericField = (value: any, defaultValue: number = 0): number => {
+  if (value === undefined || value === null) return defaultValue;
+  
+  // Handle arrays (e.g., price can be an array)
+  if (Array.isArray(value) && value.length > 0) {
+    return parseFloat(String(value[0])) || defaultValue;
+  }
+  
+  return parseFloat(String(value)) || defaultValue;
+};
+
+// Helper function for processing integer fields with default values
+const processIntField = (value: any, defaultValue: number = 0): number => {
+  if (value === undefined || value === null) return defaultValue;
+  
+  // Handle arrays
+  if (Array.isArray(value) && value.length > 0) {
+    return parseInt(String(value[0])) || defaultValue;
+  }
+  
+  return parseInt(String(value)) || defaultValue;
+};
+
+// Using Discount interface imported from tourTypes.ts
+
+// Type for internal discount processing (matches the key fields from Discount in tourTypes.ts)
+type DiscountData = Pick<Discount, 'discountEnabled' | 'discountPrice' | 'discountDateRange'>;
+
+// Process discount data to create a structured discount object
+const processDiscountData = (discountEnabled: boolean | string | undefined, discountPrice: number | string | undefined, discountDateRange: any): DiscountData => {
+  // Convert discountEnabled to boolean and provide default values
+  const isDiscountEnabled = convertToBoolean(discountEnabled);
+  
+  // Parse discountPrice as a number with a default value
+  const discountPriceValue = processNumericField(discountPrice, 0);
+  
+  // Process date range with proper defaults
+  const from = new Date();
+  const to = new Date();
+  to.setMonth(to.getMonth() + 1); // Default to 1 month from now
+  
+  // Parse the provided date range or use defaults
+  let parsedDiscountDateRange = { from, to };
+  if (discountDateRange) {
+    if (typeof discountDateRange === 'string') {
+      try {
+        const parsed = JSON.parse(discountDateRange);
+        if (parsed.from) parsedDiscountDateRange.from = new Date(parsed.from);
+        if (parsed.to) parsedDiscountDateRange.to = new Date(parsed.to);
+      } catch (e) {
+        console.error('Error parsing discount date range:', e);
+      }
+    } else if (typeof discountDateRange === 'object') {
+      if (discountDateRange.from) parsedDiscountDateRange.from = new Date(discountDateRange.from);
+      if (discountDateRange.to) parsedDiscountDateRange.to = new Date(discountDateRange.to);
+    }
+  }
+  
+  // Create the complete discount object
+  return {
+    discountEnabled: isDiscountEnabled,
+    discountPrice: discountPriceValue,
+    discountDateRange: parsedDiscountDateRange,
+  };
+};
+
+// Process destination data to handle different formats (string ID or object with _id)
+const processDestinationData = (destination: any) => {
+  if (!destination) return undefined;
+  
+  if (typeof destination === 'string' && destination.trim() !== '') {
+    return new mongoose.Types.ObjectId(destination);
+  } else if (typeof destination === 'object' && '_id' in destination) {
+    const destObj = destination as { _id: string };
+    return new mongoose.Types.ObjectId(destObj._id);
+  }
+  
+  return undefined;
+};
+
+// Process location data to ensure it has all required fields with proper types
+const processLocationData = (location: any) => {
+  if (!location) return undefined;
+  
+  try {
+    // Parse the location if it's a string
+    const parsedLocation = typeof location === 'string' ? JSON.parse(location) : location;
+    
+    // Validate that all required fields exist
+    const requiredFields = ['street', 'city', 'state', 'country', 'lat', 'lng'];
+    const missingFields = requiredFields.filter(field => !parsedLocation[field]);
+    
+    if (missingFields.length > 0) {
+      console.warn(`Location is missing required fields: ${missingFields.join(', ')}`);
+      
+      // Create a complete location object with defaults for missing fields
+      return {
+        id: parsedLocation.id ? parsedLocation.id : new mongoose.Types.ObjectId(),
+        street: parsedLocation.street || '',
+        city: parsedLocation.city || '',
+        state: parsedLocation.state || '',
+        country: parsedLocation.country || '',
+        lat: typeof parsedLocation.lat === 'number' ? parsedLocation.lat : 0,
+        lng: typeof parsedLocation.lng === 'number' ? parsedLocation.lng : 0,
+        map: parsedLocation.map || '',
+        zip: parsedLocation.zip || '',
+        // Add any existing fields that aren't in the required list
+        ...Object.fromEntries(
+          Object.entries(parsedLocation).filter(([key]) => 
+            !requiredFields.includes(key) && key !== 'map' && key !== 'zip' && key !== 'id'
+          )
+        )
+      };
+    } else {
+      // All required fields exist, but ensure they have the right types
+      return {
+        id: parsedLocation.id ? parsedLocation.id : new mongoose.Types.ObjectId(),
+        street: String(parsedLocation.street),
+        city: String(parsedLocation.city),
+        state: String(parsedLocation.state),
+        country: String(parsedLocation.country),
+        lat: Number(parsedLocation.lat),
+        lng: Number(parsedLocation.lng),
+        map: String(parsedLocation.map || ''),
+        zip: String(parsedLocation.zip || ''),
+        // Add any existing fields that aren't in the required list
+        ...Object.fromEntries(
+          Object.entries(parsedLocation).filter(([key]) => 
+            !requiredFields.includes(key) && key !== 'map' && key !== 'zip' && key !== 'id'
+          )
+        )
+      };
+    }
+  } catch (error) {
+    console.error("Error processing location data:", error);
+    return undefined;
+  }
+};
+
+// Process gallery data to handle different formats (array, string, or single item)
+const processGalleryData = (gallery: any) => {
+  if (!gallery) return undefined;
+  
+  try {
+    // Handle gallery array or single item
+    return Array.isArray(gallery) ? gallery : 
+           (typeof gallery === 'string' ? JSON.parse(gallery) : [gallery]);
+  } catch (error) {
+    console.error("Error processing gallery data:", error);
+    return undefined;
+  }
+};
+
+// Process FAQs data to ensure it's in the correct format
+const processFaqsData = (faqs: any) => {
+  if (!faqs) return undefined;
+  
+  try {
+    // FAQs are already in the correct array format
+    return Array.isArray(faqs) ? faqs : 
+           (typeof faqs === 'string' ? JSON.parse(faqs) : []);
+  } catch (error) {
+    console.error("Error processing faqs data:", error);
+    return undefined;
+  }
+};
+
+// Process facts data with special handling for different field types
+const processFactsData = (facts: any) => {
+  if (!facts) return undefined;
+  
+  try {
+    // Parse facts if needed
+    let factsArray = Array.isArray(facts) ? facts : 
+                  (typeof facts === 'string' ? JSON.parse(facts) : []);
+    
+    // Define fact interface to fix TypeScript errors
+    interface FactItem {
+      title: string;
+      field_type: string;
+      value: any; // can be array of strings or array of objects
+      icon: string;
+    }
+    
+    // Process each fact to fix nested arrays and stringified objects
+    return factsArray.map((fact: FactItem) => {
+      // Extract value and normalize it
+      let factValue = fact.value;
+      
+      // Fix double-nested arrays
+      if (Array.isArray(factValue) && factValue.length === 1 && Array.isArray(factValue[0])) {
+        factValue = factValue[0];
+      }
+      
+      // Special handling for Multi Select with JSON string
+      if (fact.field_type === 'Multi Select') {
+        // For Multi Select fields, the value might be a JSON string itself
+        if (Array.isArray(factValue) && factValue.length === 1 && typeof factValue[0] === 'string' && factValue[0].startsWith('[')) {
+          try {
+            // Parse the JSON string to get actual objects
+            factValue = JSON.parse(factValue[0]);
+          } catch (e) {
+            console.error("Error parsing Multi Select JSON string:", e);
+            factValue = [];
+          }
+        } else if (typeof factValue === 'string' && factValue.startsWith('[')) {
+          try {
+            factValue = JSON.parse(factValue);
+          } catch (e) {
+            console.error("Error parsing direct JSON string:", e);
+            factValue = [];
+          }
+        }
+      }
+      
+      // Default value handling
+      if (!factValue || (Array.isArray(factValue) && factValue.length === 0)) {
+        if (fact.field_type === 'Plain Text') {
+          factValue = [''];
+        } else if (fact.field_type === 'Single Select') {
+          factValue = [''];
+        } else if (fact.field_type === 'Multi Select') {
+          factValue = [];
+        }
+      }
+      
+      return {
+        ...fact,
+        value: factValue
+      };
+    });
+  } catch (error) {
+    console.error("Error processing facts data:", error);
+    return undefined;
+  }
+};
+
+// Helper function to process tourDates - using compatible format with tourTypes.ts
+type TourDatesData = {
+  days: number;
+  nights: number;
+  dateRange: {
+    from: Date; // Internal from/to format used in the controller
+    to: Date;
+  };
+  isRecurring: boolean;
+  recurrencePattern?: string;
+  recurrenceEndDate?: Date;
+}
+
+const processTourDates = (tourDates: any): TourDatesData => {
+  if (!tourDates) {
+    return {
+      days: 0,
+      nights: 0,
+      dateRange: { from: new Date(), to: new Date() },
+      isRecurring: false
+    };
+  }
+  
+  try {
+    // Parse the tourDates if it's a string
+    const parsedTourDates = typeof tourDates === 'string' ? JSON.parse(tourDates) : tourDates;
+    
+    return {
+      days: processIntField(parsedTourDates.days, 0),
+      nights: processIntField(parsedTourDates.nights, 0),
+      dateRange: ensureDateRange(parsedTourDates.dateRange),
+      isRecurring: convertToBoolean(parsedTourDates.isRecurring),
+      recurrencePattern: parsedTourDates.recurrencePattern,
+      recurrenceEndDate: parsedTourDates.recurrenceEndDate ? new Date(parsedTourDates.recurrenceEndDate) : undefined
+    };
+  } catch (error) {
+    console.error('Error processing tour dates:', error);
+    return {
+      days: 0,
+      nights: 0,
+      dateRange: { from: new Date(), to: new Date() },
+      isRecurring: false
+    };
+  }
+};
+
+// Helper function to extract tour fields from request body
+interface TourRequestFields {
+  title?: string;
+  code?: string;
+  excerpt?: string;
+  description?: string;
+  coverImage?: string;
+  file?: string;
+  tourStatus?: string;
+  price?: string | number | string[];
+  originalPrice?: string | number;
+  basePrice?: string | number;
+  discountEnabled?: boolean | string;
+  discountDateRange?: any;
+  discountPrice?: string | number;
+  pricePerType?: string;
+  minSize?: string | number;
+  maxSize?: string | number;
+  pricingOptionsEnabled?: boolean | string;
+  pricingOptions?: any;
+  fixedDeparture?: boolean | string;
+  multipleDates?: boolean | string;
+  tourDates?: any;
+  fixedDate?: any;
+  dateRanges?: any;
+  category?: any;
+  outline?: string;
+  itinerary?: any;
+  include?: string | string[];
+  exclude?: string | string[];
+  facts?: any;
+  faqs?: any;
+  gallery?: any;
+  map?: string;
+  location?: any;
+  author?: any;
+  enquiry?: boolean | string;
+  isSpecialOffer?: boolean | string;
+  destination?: string;
+  groupSize?: string | number;
+  [key: string]: any; // Allow for additional fields
+}
+
+const extractTourFields = (req: Request): TourRequestFields => {
+  // Extract top level fields from request body
+  const {
+    title,
+    code,
+    excerpt,
+    description,
+    coverImage,
+    file,
+    tourStatus,
+    // Handle both top-level price and nested price
+    price,
+    originalPrice,
+    // Other fields
+    category,
+    outline,
+    itinerary,
+    include,
+    exclude,
+    facts,
+    faqs,
+    gallery,
+    map,
+    location,
+    author,
+    enquiry,
+    isSpecialOffer,
+    destination,
+    groupSize,
+    // Get nested objects directly
+    pricing,
+    dates,
+    ...rest // Capture any other fields that might be present
+  } = req.body;
+  
+  console.log('Pricing object from frontend:', pricing);
+  console.log('Dates object from frontend:', dates);
+  
+  // Extract values from nested pricing object if it exists
+  const basePrice = pricing?.price || price;
+  const pricePerType = pricing?.pricePerPerson ? 'person' : 'group';
+  const pricingOptionsEnabled = pricing?.pricingOptionsEnabled;
+  const minSize = pricing?.paxRange?.[0] || rest.minSize;
+  const maxSize = pricing?.paxRange?.[1] || rest.maxSize;
+  
+  // Extract discount info from nested pricing.discount if it exists
+  const discountEnabled = pricing?.discount?.discountEnabled || rest.discountEnabled;
+  const discountPrice = pricing?.discount?.discountPrice || rest.discountPrice;
+  const discountDateRange = pricing?.discount?.dateRange || rest.discountDateRange;
+  
+  // Get pricing options
+  const pricingOptions = pricing?.pricingOptions || rest.pricingOptions;
+  
+  // Extract values from nested dates object if it exists
+  const fixedDeparture = dates?.fixedDeparture || rest.fixedDeparture;
+  const multipleDates = dates?.multipleDates || rest.multipleDates;
+  const tourDates = {
+    days: dates?.days,
+    nights: dates?.nights,
+    dateRange: dates?.singleDateRange,
+    ...rest.tourDates
+  };
+  const dateRanges = dates?.departures || rest.dateRanges;
+
+  // Create fixedDate from dates object if available
+  const fixedDate = dates?.singleDateRange ? {
+    dateRange: dates.singleDateRange,
+    selectedPricingOption: null
+  } : null;
+
+  return {
+    title,
+    code,
+    excerpt,
+    description,
+    coverImage: coverImage || (req.file?.path || undefined),
+    file: file || (req.file?.path || undefined),
+    tourStatus,
+    price,
+    originalPrice,
+    basePrice,
+    discountEnabled,
+    discountDateRange,
+    discountPrice,
+    pricePerType,
+    minSize,
+    maxSize,
+    pricingOptionsEnabled,
+    pricingOptions,
+    fixedDeparture,
+    multipleDates,
+    tourDates,
+    fixedDate,
+    dateRanges,
+    category,
+    outline,
+    itinerary,
+    include,
+    exclude,
+    facts,
+    faqs,
+    gallery,
+    map,
+    location,
+    author,
+    enquiry,
+    isSpecialOffer,
+    destination,
+    groupSize,
+    ...rest
+  };
+};
+
+// Helper function to process date ranges
+interface ProcessedDateRange {
+  id: string;
+  label: string;
+  dateRange: { from: Date; to: Date };
+  capacity?: number;
+  selectedPricingOptions: any[];
+  isRecurring: boolean;
+  recurrencePattern?: string;
+  recurrenceEndDate?: Date;
+  priceLockedUntil?: Date;
+}
+
+const processDateRanges = (dateRanges: any): ProcessedDateRange[] => {
+  if (!dateRanges) return [];
+  
+  try {
+    // Parse the dateRanges array if it's a string
+    const dateRangesArray = typeof dateRanges === 'string' ? JSON.parse(dateRanges) : dateRanges;
+    
+    if (!Array.isArray(dateRangesArray)) {
+      console.warn('DateRanges is not an array:', dateRangesArray);
+      return [];
+    }
+    
+    // Process each range
+    return dateRangesArray.map((range: any) => {
+      // Basic validation
+      if (!range || typeof range !== 'object') {
+        console.warn('Invalid date range:', range);
+        return null;
+      }
+      
+      // Create a processed range object with required fields
+      const processedRange: ProcessedDateRange = {
+        id: range.id || String(Date.now()),
+        label: range.label || '',
+        dateRange: ensureDateRange(range.dateRange),
+        capacity: range.capacity ? Number(range.capacity) : undefined,
+        selectedPricingOptions: [],
+        isRecurring: convertToBoolean(range.isRecurring),
+      };
+      
+      // Process selected pricing options
+      if (range.selectedPricingOptions) {
+        if (Array.isArray(range.selectedPricingOptions)) {
+          processedRange.selectedPricingOptions = range.selectedPricingOptions.map((option: any) => {
+            // If option is already an object with all required fields, use it as is
+            if (typeof option === 'object' && option.id && option.name) {
+              return {
+                id: option.id,
+                name: option.name,
+                category: option.category || '',
+                price: Number(option.price) || 0
+              };
+            }
+            // If option is just a string (legacy format), return it as is
+            return option;
+          });
+        }
+      }
+      
+      // Only add recurrence fields if isRecurring is true or they exist
+      if (processedRange.isRecurring) {
+        processedRange.recurrencePattern = range.recurrencePattern || undefined;
+        processedRange.recurrenceEndDate = range.recurrenceEndDate ? new Date(range.recurrenceEndDate) : undefined;
+      }
+      
+      // Add priceLockedUntil if provided
+      if (range.priceLockedUntil) {
+        processedRange.priceLockedUntil = new Date(range.priceLockedUntil);
+      }
+      
+      return processedRange;
+    }).filter(Boolean) as ProcessedDateRange[];
+  } catch (error) {
+    console.error('Error processing date ranges:', error);
+    return [];
+  }
+};
+
+// Function to generate a unique tour code
+const generateUniqueCode = () => {
+  const prefix = "BNT-";
+  const randomPart = Math.random().toString(36).substring(2, 8).toUpperCase();
+  const timestamp = Date.now().toString(36).substring(0, 4).toUpperCase();
+  return `${prefix}${randomPart}-${timestamp}`;
 };
 
 // Create a tour
@@ -57,100 +758,22 @@ export const createTour = async (
   try {
     // Cast req to AuthRequest to access user properties
     const authReq = req as AuthRequest;
-    const {
-      title,
-      code,
-      excerpt,
-      description,
-      tourStatus,
-      basePrice,
-      price,
-      pricePerType,
-      minSize,
-      maxSize,
-      groupSize,
-      pricingOptionsEnabled,
-      fixedDeparture,
-      multipleDates,
-      isSpecialOffer,
-      outline,
-      include,
-      exclude,
-      destination,
-      map,
-      coverImage,
-      author,
-      enquiry,
-      category,
-      itinerary,
-      facts,
-      faqs,
-      gallery,
-      location,
-      originalPrice,
-      discountEnabled,
-      discountPrice,
-      discountDateRange,
-      // Pricing structure fields
-      pricingOptions,
-      // Tour dates fields
-      tourDates,
-      fixedDate,
-      dateRanges
-    } = req.body;
+    // Extract all tour fields using helper function
+    const {title,code,excerpt,description,tourStatus,basePrice,price,pricePerType,minSize,maxSize,groupSize,pricingOptionsEnabled,fixedDeparture,multipleDates,isSpecialOffer,outline,include,exclude,destination,map,coverImage,file,author,enquiry,category,itinerary,facts,faqs,gallery,location,originalPrice,discountEnabled,discountPrice,discountDateRange,pricingOptions,tourDates,fixedDate,dateRanges
+    } = extractTourFields(req);
 
     // Validate required fields
-    if (!title || !code) {
+    if (!title) {
       return next(
-        createHttpError(400, "Title and code are required fields")
+        createHttpError(400, "Title is required")
       );
     }
 
-    // Process category data
-    let processedCategory: Array<{categoryId: mongoose.Types.ObjectId, categoryName: string}> = [];
-    if (Array.isArray(category)) {
-      processedCategory = category.map((cat: any) => {
-        if (cat && cat.value) {
-          return {
-            categoryId: new mongoose.Types.ObjectId(cat.value),
-            categoryName: cat.label || 'Category'
-          };
-        }
-        return null;
-      }).filter(Boolean) as Array<{categoryId: mongoose.Types.ObjectId, categoryName: string}>;
-    }
+    // Process category and itinerary data using helper functions
+    const processedCategory = category ? processCategoryData(category) : [];
+    const processedItinerary = itinerary ? processItineraryData(itinerary) : [];
 
-    // Process itinerary data
-    let processedItinerary: Array<{
-      day: string;
-      title: string;
-      description: string;
-      dateTime: Date;
-    }> = [];
-    if (Array.isArray(itinerary)) {
-      processedItinerary = itinerary.map(item => ({
-        ...item,
-        day: item.day || '1',
-        title: item.title || '',
-        description: item.description || '',
-        dateTime: item.dateTime || new Date()
-      }));
-    }
-
-    // Parse pricingOptions field
-    interface PricingOption {
-      name: string;
-      category: string;
-      customCategory: string;
-      price: number;
-      discountEnabled: boolean;
-      discountPrice: number;
-      discountDateRange: DateRange;
-      paxRange: {
-        from: number;
-        to: number;
-      };
-    }
+    // Parse pricingOptions field - Using PricingOption type imported from tourTypes.ts
 
     let parsedPricingOptions: PricingOption[] = [];
     if (req.body.pricingOptions) {
@@ -177,27 +800,8 @@ export const createTour = async (
       }
     }
 
-    // Process date ranges
-    let processedDateRanges: Array<{
-      id: string;
-      label: string;
-      dateRange: { from: Date; to: Date };
-      selectedPricingOptions: string[];
-      isRecurring: boolean;
-      recurrencePattern: string;
-      recurrenceEndDate: Date | null;
-    }> = [];
-    if (Array.isArray(dateRanges)) {
-      processedDateRanges = dateRanges.map(range => ({
-        id: range.id || String(new Date().getTime()),
-        label: range.label || 'Date Range',
-        dateRange: range.dateRange || { from: new Date(), to: new Date() },
-        selectedPricingOptions: Array.isArray(range.selectedPricingOptions) ? range.selectedPricingOptions : [],
-        isRecurring: range.isRecurring === true,
-        recurrencePattern: range.recurrencePattern || null,
-        recurrenceEndDate: range.recurrenceEndDate ? new Date(range.recurrenceEndDate) : null
-      }));
-    }
+    // Process date ranges using helper function
+    const processedDateRanges = dateRanges ? processDateRanges(dateRanges) : [];
 
     // Parse fixedDate field
     let parsedFixedDate;
@@ -254,84 +858,101 @@ export const createTour = async (
       };
     }
 
-    // Process discount fields
-    const isDiscountEnabled = convertToBoolean(req.body.discountEnabled);
-    const discountPriceValue = req.body.discountPrice ? parseFloat(String(req.body.discountPrice)) : 0;
+    // Process discount information using helper function
+    const discountObject = processDiscountData(
+      convertToBoolean(discountEnabled),
+      discountPrice,
+      discountDateRange
+    );
     
-    // Process discount date range
-    let parsedDiscountDateRange = {
-      from: new Date(),
-      to: new Date()
-    };
+    // Process tour dates using helper function
+    const processedTourDates = processTourDates(tourDates);
     
-    try {
-      // Handle discountDateRange if provided
-      if (req.body.discountDateRange) {
-        const parsedRange = parseJsonField<Record<string, any>>(req.body.discountDateRange, {});
-        parsedDiscountDateRange = ensureDateRange(parsedRange);
+    // Handle tour code - ensure it's truly unique
+    let tourCode = code ? code.toUpperCase() : generateUniqueCode();
+    
+    // Keep generating codes until we find a unique one
+    let attempts = 0;
+    const maxAttempts = 10;
+    
+    while (attempts < maxAttempts) {
+      const existingTour = await tourModel.findOne({ code: tourCode });
+      if (!existingTour) {
+        // Found a unique code, break the loop
+        break;
       }
-    } catch (error) {
-      console.error("Error parsing discount date range:", error);
+      
+      // Code already exists, generate a new one
+      console.log(`Tour code ${tourCode} already exists (attempt ${attempts + 1}), generating a new one`);
+      tourCode = generateUniqueCode();
+      attempts++;
     }
     
-    // Create structured discount object
-    const discountObject = isDiscountEnabled ? {
-      discountEnabled: true,
-      discountPrice: discountPriceValue,
-      discountDateRange: parsedDiscountDateRange
-    } : {
-      discountEnabled: false
-    };
+    if (attempts >= maxAttempts) {
+      console.error(`Failed to generate unique tour code after ${maxAttempts} attempts`);
+      return next(createHttpError(500, "Failed to generate unique tour code"));
+    }
     
     // Create a new tour
     const newTour = new tourModel({
+      // Initialize reviews as an empty array to avoid MongoDB duplicate key errors
+      reviews: [],
       title,
-      code: code.toUpperCase(),
+      code: tourCode,
+      category: processedCategory,
       excerpt: excerpt || title,
-      description,
-      author: authReq.user?._id || authReq.userId,
       tourStatus: tourStatus || "Draft",
-      price: Array.isArray(price) ? parseFloat(price[0]) || 0 : parseFloat(price) || 0,
+      description,
       coverImage,
+      file,
+      author: authReq.user?._id || authReq.userId,
+      enquiry: convertToBoolean(enquiry),
       outline,
       include,
       exclude,
-      map,
-      enquiry: convertToBoolean(enquiry),
-      isSpecialOffer: convertToBoolean(isSpecialOffer),
-      // New pricing structure fields
-      basePrice: parseFloat(basePrice) || 0,
-      discountEnabled: isDiscountEnabled,
-      discountPrice: discountPriceValue,
+      itinerary: processedItinerary,
       pricePerType: pricePerType || 'person',
-      minSize: parseInt(minSize) || 1,
-      maxSize: parseInt(maxSize) || 10,
-      groupSize: parseInt(groupSize) || 1,
+      minSize: processIntField(minSize, 1),
+      maxSize: processIntField(maxSize, 10),
+      groupSize: processIntField(groupSize, 1),
       pricingOptionsEnabled: convertToBoolean(pricingOptionsEnabled),
       pricingOptions: parsedPricingOptions,
       // Tour dates fields
       fixedDeparture: convertToBoolean(fixedDeparture),
       multipleDates: convertToBoolean(multipleDates),
-      tourDates: parsedTourDates || { 
-        days: 0,
-        nights: 0,
-        dateRange: {
-          from: new Date(),
-          to: new Date()
-        },
-        isRecurring: false
-      },
-      // Pass the parsed discount date range directly
-      discountDateRange: parsedDiscountDateRange,
+      tourDates: processedTourDates,
       // Add the structured discount object
       discount: discountObject
     });
 
-    // Only add destination if it's a valid non-empty string
-    if (destination && typeof destination === 'string' && destination.trim() !== '') {
-      newTour.destination = new mongoose.Types.ObjectId(destination);
-    } else if (destination && destination._id) {
-      newTour.destination = new mongoose.Types.ObjectId(destination._id);
+    // Process destination using helper function
+    const processedDestination = processDestinationData(destination);
+    if (processedDestination) {
+      newTour.destination = processedDestination;
+    }
+    
+    // Process location using helper function if it exists
+    if (location) {
+      const processedLocation = processLocationData(location);
+      if (processedLocation) {
+        // Only assign if we have a valid location object
+        newTour.location = processedLocation as any; // Type assertion to fix compatibility issue
+      }
+    }
+    
+    // Process gallery using helper function if it exists
+    if (gallery) {
+      newTour.gallery = processGalleryData(gallery);
+    }
+    
+    // Process facts using helper function if they exist
+    if (facts) {
+      newTour.facts = processFactsData(facts);
+    }
+    
+    // Process FAQs using helper function if they exist
+    if (faqs) {
+      newTour.faqs = processFaqsData(faqs);
     }
 
     // Save the tour
@@ -339,10 +960,14 @@ export const createTour = async (
     res.status(201).json({ tour: savedTour });
   } catch (err: any) {
     console.error("Failed to create tour:", err);
-    next(createHttpError(500, `Failed to create tour: ${err.message}`));
+    const errorMessage = err.message || 'Unknown error occurred';
+  res.status(500).json({ 
+    success: false, 
+    message: `Failed to create tour: ${errorMessage}`,
+    error: err.toString()
+  });
   }
 };
-
 
 // Update a tour
 export const updateTour = async (
@@ -361,26 +986,26 @@ export const updateTour = async (
     // Initialize empty updates object - we'll only add fields that are explicitly provided
     const updates: any = {};
       
-    // List of all possible fields from the request body
+    // Extract all tour fields using helper function
     const {
       title,
       code,
       excerpt,
       description,
-      coverImage,
       tourStatus,
+      basePrice,
       price,
       originalPrice,
-      // Pricing structure fields
-      basePrice,
-      discountEnabled,
-      discountDateRange,
-      discountPrice,
+      // Pricing fields
       pricePerType,
       minSize,
       maxSize,
+      groupSize,
+      // Boolean fields
+      discountEnabled,
+      discountDateRange,
+      discountPrice,
       pricingOptionsEnabled,
-      pricingOptions,
       // Tour dates fields
       fixedDeparture,
       multipleDates,
@@ -402,198 +1027,97 @@ export const updateTour = async (
       enquiry,
       isSpecialOffer,
       destination,
-      groupSize,
-    } = req.body;
+      pricingOptions,
+      coverImage,
+      file,
+    } = extractTourFields(req);
 
     // Only add fields to updates if they are explicitly provided in the request
       
     // Handle basic string fields
-    if (title !== undefined) updates.title = title;
-    if (code !== undefined) updates.code = code;
-    if (excerpt !== undefined) updates.excerpt = excerpt;
-    if (description !== undefined) updates.description = description;
-    if (tourStatus !== undefined) updates.tourStatus = tourStatus;
-    if (outline !== undefined) updates.outline = outline;
-    if (include !== undefined) updates.include = include;
-    if (exclude !== undefined) updates.exclude = exclude;
-    if (map !== undefined) updates.map = map;
+    if (title) updates.title = title;
+    
+    // Handle code uniqueness for updates
+    if (code) {
+      const upperCaseCode = code.toUpperCase();
+      // Check if another tour already has this code (excluding the current tour)
+      const existingTour = await tourModel.findOne({ 
+        code: upperCaseCode,
+        _id: { $ne: tourId } // Exclude the current tour
+      });
       
-    // Handle numerical values - only if they exist in the request
-    if (price !== undefined) {
-      // Handle price being an array or string
-      if (Array.isArray(price)) {
-        updates.price = parseFloat(price[0]) || 0;
+      if (existingTour) {
+        // Code already exists on another tour, generate a new one
+        console.log(`Tour code ${upperCaseCode} already exists, generating a new one`);
+        updates.code = generateUniqueCode();
       } else {
-        updates.price = parseFloat(price as string) || 0;
+        // Code is unique, use it
+        updates.code = upperCaseCode;
       }
     }
-    if (originalPrice !== undefined) updates.originalPrice = parseFloat(originalPrice as string) || 0;
-    if (basePrice !== undefined) updates.basePrice = parseFloat(basePrice as string) || 0;
-    if (minSize !== undefined) updates.minSize = parseInt(minSize as string) || 1;
-    if (maxSize !== undefined) updates.maxSize = parseInt(maxSize as string) || 10;
-    if (groupSize !== undefined) updates.groupSize = parseInt(groupSize as string) || 1;
+    
+    if (excerpt) updates.excerpt = excerpt;
+    if (description) updates.description = description;
+    if (tourStatus) updates.tourStatus = tourStatus;
+    if (basePrice) updates.basePrice = parseFloat(String(basePrice));
+    if (include !== undefined) updates.include = include;
+    // Handle exclude which can be an array or string
+    if (exclude !== undefined) {
+      // If it's an array, join it with a separator or use the first item
+      if (Array.isArray(exclude)) {
+        updates.exclude = exclude.join('\n');
+      } else {
+        updates.exclude = exclude;
+      }
+    }
+    // Map is now part of location, not a separate field
+      
+    // Handle numerical values - only if they exist in the request
+    // Process numeric fields using helper functions
+    if (price !== undefined) updates.price = processNumericField(price);
+    if (originalPrice !== undefined) updates.originalPrice = processNumericField(originalPrice);
+    if (basePrice !== undefined) updates.basePrice = processNumericField(basePrice);
+    if (minSize !== undefined) updates.minSize = processIntField(minSize, 1);
+    if (maxSize !== undefined) updates.maxSize = processIntField(maxSize, 10);
+    if (groupSize !== undefined) updates.groupSize = processIntField(groupSize, 1);
 
-    // Handle boolean values - only if they exist in the request
-    if (pricingOptionsEnabled !== undefined) updates.pricingOptionsEnabled = convertToBoolean(pricingOptionsEnabled);
-    if (fixedDeparture !== undefined) updates.fixedDeparture = convertToBoolean(fixedDeparture);
-    if (multipleDates !== undefined) updates.multipleDates = convertToBoolean(multipleDates);
-    if (enquiry !== undefined) updates.enquiry = convertToBoolean(enquiry);
-    if (isSpecialOffer !== undefined) updates.isSpecialOffer = convertToBoolean(isSpecialOffer);
+    // Handle boolean values using convertToBoolean helper function
+    const booleanFields = {
+      pricingOptionsEnabled, fixedDeparture, multipleDates, enquiry, isSpecialOffer
+    };
+    
+    // Process each boolean field that is defined in the request
+    Object.entries(booleanFields).forEach(([key, value]) => {
+      if (value !== undefined) {
+        updates[key as keyof typeof updates] = convertToBoolean(value);
+      }
+    });
       
     // Handle string values - only if they exist in the request
     if (pricePerType !== undefined) updates.pricePerType = pricePerType;
       
     // Handle cover image - only if it exists in the request
     if (coverImage) updates.coverImage = coverImage;
-    if (req.file?.path) updates.coverImage = req.file.path;
+    if (file) updates.file = file;
       
-    // Handle category - only if it exists in the request
+    // Handle category and itinerary using extracted helper functions
     if (category) {
-      try {
-        // Handle the array of objects with label and value properties
-        updates.category = Array.isArray(category) ? category.map((cat: any) => {
-          if (cat && cat.value) {
-            return {
-              categoryId: new mongoose.Types.ObjectId(cat.value),
-              categoryName: cat.label || 'Category'
-            };
-          }
-          return {
-            categoryId: new mongoose.Types.ObjectId(),
-            categoryName: 'Category'
-          };
-        }) : [];
-      } catch (error) {
-        console.error("Error processing category:", error);
-        // Don't update category if there's an error
-      }
+      updates.category = processCategoryData(category);
     }
     
-    // Handle itinerary
     if (itinerary) {
-      try {
-        // Process itinerary data
-        updates.itinerary = Array.isArray(itinerary) ? itinerary.map((item: any) => ({
-          ...item,
-          day: item.day || '1',
-          title: item.title || '',
-          description: item.description || '',
-          dateTime: item.dateTime || new Date()
-        })) : [];
-      } catch (error) {
-        console.error("Error processing itinerary:", error);
-        // Don't update itinerary if there's an error
-      }
+      updates.itinerary = processItineraryData(itinerary);
     }
     
-    // Parse pricingOptions field
-    interface PricingOption {
-      name: string;
-      category: string;
-      customCategory: string;
-      price: number;
-      discountEnabled: boolean;
-      discountPrice: number;
-      discountDateRange: DateRange;
-      paxRange: {
-        from: number;
-        to: number;
-      };
+    // Use the helper function to process pricing options
+    if (pricingOptions) {
+      updates.pricingOptions = processPricingOptions(pricingOptions);
     }
 
-    let parsedPricingOptions: PricingOption[] = [];
-    if (req.body.pricingOptionsEnabled === true || req.body.pricingOptionsEnabled === "true") {
-      let pricingArray;
-      try {
-        pricingArray = typeof pricingOptions === 'string' ? JSON.parse(pricingOptions) : pricingOptions;
-      } catch (error) {
-        return res.status(400).json({ error: 'Invalid pricingOptions format' });
-      }
-      parsedPricingOptions = pricingArray.map((option: any) => {
-        // Create the pricing option with the correct structure
-        return {
-          name: option.name,
-          category: option.category || 'adult',
-          customCategory: option.customCategory || '',
-          price: Number(option.price) || 0,
-          // Handle discount fields directly in the pricing option
-          discountEnabled: option.discountEnabled === true || option.discountEnabled === 'true',
-          discountPrice: option.discountEnabled ? Number(option.discountPrice) || 0 : 0,
-          discountDateRange: {
-            from: option.discountEnabled && option.discountDateRange?.from ? 
-              new Date(option.discountDateRange.from) : new Date(),
-            to: option.discountEnabled && option.discountDateRange?.to ? 
-              new Date(option.discountDateRange.to) : new Date()
-          },
-          // Parse paxRange correctly
-          paxRange: {
-            from: Array.isArray(option.paxRange) ? Number(option.paxRange[0]) || 1 : 
-                  (option.paxRange?.from ? Number(option.paxRange.from) : 1),
-            to: Array.isArray(option.paxRange) ? Number(option.paxRange[1]) || 10 : 
-                (option.paxRange?.to ? Number(option.paxRange.to) : 10)
-          }
-        };
-      });
-    }
-    updates.pricingOptions = parsedPricingOptions;
-
-    // Handle dateRanges if it exists
+    // Handle dateRanges using the helper function
     if (dateRanges) {
       try {
-        // Parse dateRanges from JSON
-        const parsedDateRanges = typeof dateRanges === 'string' 
-          ? JSON.parse(dateRanges) 
-          : dateRanges;
-        
-        console.log("Parsing dateRanges:", parsedDateRanges);
-        
-        // Process and validate each date range
-        updates.dateRanges = parsedDateRanges.map((range: any) => {
-          // Prepare base object
-          const processedRange: any = {
-            label: range.label || 'Date Range',
-            dateRange: ensureDateRange(range.dateRange || {}),
-            isRecurring: Boolean(range.isRecurring),
-          };
-          
-          // Handle selectedPricingOptions - can be strings or objects
-          if (range.selectedPricingOptions) {
-            if (Array.isArray(range.selectedPricingOptions)) {
-              processedRange.selectedPricingOptions = range.selectedPricingOptions.map((option: any) => {
-                // If option is already an object with all required fields, use it as is
-                if (typeof option === 'object' && option.id && option.name) {
-                  return {
-                    id: option.id,
-                    name: option.name,
-                    category: option.category || '',
-                    price: Number(option.price) || 0
-                  };
-                }
-                // If option is just a string (legacy format), return it as is
-                return option;
-              });
-            } else {
-              // Ensure it's always an array
-              processedRange.selectedPricingOptions = [];
-            }
-          } else {
-            processedRange.selectedPricingOptions = [];
-          }
-          
-          // Only add recurrence fields if isRecurring is true or they exist
-          if (processedRange.isRecurring) {
-            processedRange.recurrencePattern = range.recurrencePattern || undefined;
-            processedRange.recurrenceEndDate = range.recurrenceEndDate ? new Date(range.recurrenceEndDate) : undefined;
-          }
-          
-          // Add priceLockedUntil if provided
-          if (range.priceLockedUntil) {
-            processedRange.priceLockedUntil = new Date(range.priceLockedUntil);
-          }
-          
-          return processedRange;
-        });
-        
+        updates.dateRanges = processDateRanges(dateRanges);
         console.log("Processed dateRanges:", updates.dateRanges);
       } catch (error) {
         console.error("Error processing dateRanges:", error);
@@ -601,31 +1125,12 @@ export const updateTour = async (
       }
     }
 
-    // Ensure the date ranges are properly handled in tourDates
+    // Process tour dates using helper function
     if (tourDates) {
       try {
-        // Parse the tourDates JSON string
-        const parsedTourDates = typeof tourDates === 'string' 
-          ? JSON.parse(tourDates) 
-          : tourDates;
-        
-        console.log("Parsed tourDates:", parsedTourDates);
-        
-        // Create a properly structured tourDates object
-        updates.tourDates = {
-          days: parseInt(String(parsedTourDates.days || 0)),
-          nights: parseInt(String(parsedTourDates.nights || 0)),
-        };
-        
-        // Handle the dateRange if it exists
-        if (parsedTourDates.dateRange) {
-          updates.tourDates.dateRange = ensureDateRange(parsedTourDates.dateRange);
-        }
-        
-        console.log("Processed tourDates:", updates.tourDates);
+        updates.tourDates = processTourDates(tourDates);
       } catch (error) {
         console.error("Error processing tourDates:", error);
-        delete updates.tourDates; // Don't fail the whole update, just this field
       }
     }
 
@@ -649,147 +1154,35 @@ export const updateTour = async (
     if (include) updates.include = include;
     if (exclude) updates.exclude = exclude;
     
-    // Handle other JSON fields
+    // Process facts using helper function if they exist
     if (facts) {
-      try {
-        // Parse facts if needed
-        let factsArray = Array.isArray(facts) ? facts : 
-                      (typeof facts === 'string' ? JSON.parse(facts) : []);
-        
-        // Define fact interface to fix TypeScript errors
-        interface FactItem {
-          title: string;
-          field_type: string;
-          value: any; // can be array of strings or array of objects
-          icon: string;
-        }
-        
-        // Process each fact to fix nested arrays and stringified objects
-        updates.facts = factsArray.map((fact: FactItem) => {
-          // Extract value and normalize it
-          let factValue = fact.value;
-          
-          // Fix double-nested arrays
-          if (Array.isArray(factValue) && factValue.length === 1 && Array.isArray(factValue[0])) {
-            factValue = factValue[0];
-          }
-          
-          // Special handling for Multi Select with JSON string
-          if (fact.field_type === 'Multi Select') {
-            // For Multi Select fields, the value might be a JSON string itself
-            if (Array.isArray(factValue) && factValue.length === 1 && typeof factValue[0] === 'string' && factValue[0].startsWith('[')) {
-              try {
-                // Parse the JSON string to get actual objects
-                factValue = JSON.parse(factValue[0]);
-              } catch (e) {
-                console.error("Error parsing Multi Select JSON string:", e);
-                factValue = [];
-              }
-            } else if (typeof factValue === 'string' && factValue.startsWith('[')) {
-              try {
-                factValue = JSON.parse(factValue);
-              } catch (e) {
-                console.error("Error parsing direct JSON string:", e);
-                factValue = [];
-              }
-            }
-          }
-          
-          // Default value handling
-          if (!factValue || (Array.isArray(factValue) && factValue.length === 0)) {
-            if (fact.field_type === 'Plain Text') {
-              factValue = [''];
-            } else if (fact.field_type === 'Single Select') {
-              factValue = [''];
-            } else if (fact.field_type === 'Multi Select') {
-              factValue = [];
-            }
-          }
-          
-          return {
-            ...fact,
-            value: factValue
-          };
-        });
-        
-      } catch (error) {
-        console.error("Error processing facts:", error);
-        // Don't update facts if there's an error
+      const processedFacts = processFactsData(facts);
+      if (processedFacts) {
+        updates.facts = processedFacts;
       }
     }
     
+    // Process FAQs using helper function if they exist
     if (faqs) {
-      try {
-        // FAQs are already in the correct array format
-        updates.faqs = Array.isArray(faqs) ? faqs : 
-                     (typeof faqs === 'string' ? JSON.parse(faqs) : []);
-      } catch (error) {
-        console.error("Error processing faqs:", error);
-        // Don't update faqs if there's an error
+      const processedFaqs = processFaqsData(faqs);
+      if (processedFaqs) {
+        updates.faqs = processedFaqs;
       }
     }
     
+    // Process gallery using helper function if it exists
     if (gallery) {
-      try {
-        // Handle gallery array or single item
-        updates.gallery = Array.isArray(gallery) ? gallery : 
-                        (typeof gallery === 'string' ? JSON.parse(gallery) : [gallery]);
-      } catch (error) {
-        console.error("Error processing gallery:", error);
-        // Don't update gallery if there's an error
+      const processedGallery = processGalleryData(gallery);
+      if (processedGallery) {
+        updates.gallery = processedGallery;
       }
     }
     
+    // Process location using helper function if it exists
     if (location) {
-      try {
-        // Parse the location if it's a string
-        const parsedLocation = typeof location === 'string' ? JSON.parse(location) : location;
-        
-        // Validate that all required fields exist
-        const requiredFields = ['street', 'city', 'state', 'country', 'lat', 'lng'];
-        const missingFields = requiredFields.filter(field => !parsedLocation[field]);
-        
-        if (missingFields.length > 0) {
-          console.warn(`Location is missing required fields: ${missingFields.join(', ')}`);
-          
-          // If there are missing fields, we can either:
-          // 1. Return an error (strict validation)
-          // 2. Try to use defaults (more permissive)
-          // Using option 2 for better user experience:
-          
-          // Create a complete location object with defaults for missing fields
-          updates.location = {
-            street: parsedLocation.street || '',
-            city: parsedLocation.city || '',
-            state: parsedLocation.state || '',
-            country: parsedLocation.country || '',
-            lat: typeof parsedLocation.lat === 'number' ? parsedLocation.lat : 0,
-            lng: typeof parsedLocation.lng === 'number' ? parsedLocation.lng : 0,
-            // Add any existing fields that aren't in the required list
-            ...Object.fromEntries(
-              Object.entries(parsedLocation).filter(([key]) => !requiredFields.includes(key))
-            )
-          };
-        } else {
-          // All required fields exist, but ensure they have the right types
-          updates.location = {
-            street: String(parsedLocation.street),
-            city: String(parsedLocation.city),
-            state: String(parsedLocation.state),
-            country: String(parsedLocation.country),
-            lat: Number(parsedLocation.lat),
-            lng: Number(parsedLocation.lng),
-            // Add any existing fields that aren't in the required list
-            ...Object.fromEntries(
-              Object.entries(parsedLocation).filter(([key]) => !requiredFields.includes(key))
-            )
-          };
-        }
-        
-        console.log("Processed location:", updates.location);
-      } catch (error) {
-        console.error("Error processing location:", error);
-        // Don't update location if there's an error
+      const processedLocation = processLocationData(location);
+      if (processedLocation) {
+        updates.location = processedLocation;
       }
     }
 
@@ -833,13 +1226,11 @@ export const updateTour = async (
       updates.discount = discount;
     }
     
-    // Handle destination - only if it's provided
+    // Process destination using helper function if it's provided
     if (destination !== undefined) {
-      // Only add destination if it's a valid non-empty string
-      if (typeof destination === 'string' && destination.trim() !== '') {
-        updates.destination = new mongoose.Types.ObjectId(destination);
-      } else if (destination && destination._id) {
-        updates.destination = new mongoose.Types.ObjectId(destination._id);
+      const processedDestination = processDestinationData(destination);
+      if (processedDestination) {
+        updates.destination = processedDestination;
       }
     }
 
@@ -1020,8 +1411,6 @@ export const getUserToursTitle = async (
     next(createHttpError(500, 'Failed to get tours'));
   }
 };
-
-// Get a single tour
 export const getTour = async (
   req: Request,
   res: Response,
@@ -1045,6 +1434,24 @@ export const getTour = async (
 
       // Create a modified version of tour with fixed fact values for the response
       const sanitizedTour = tour.toObject();
+      
+      // Handle include/exclude conversion - converting between types in a sanitized object is safe
+      // We use type assertions to help TypeScript understand our intent
+      if (Array.isArray(sanitizedTour.include)) {
+        // @ts-ignore - This is a sanitized object, type conversion is intentional
+        sanitizedTour.include = sanitizedTour.include.join('\n');
+      }
+      
+      if (Array.isArray(sanitizedTour.exclude)) {
+        // @ts-ignore - This is a sanitized object, type conversion is intentional
+        sanitizedTour.exclude = sanitizedTour.exclude.join('\n');
+      }
+      
+      // Remove root-level map field which is now in location object
+      if ('map' in sanitizedTour) {
+        // Set to undefined instead of deleting - TypeScript safe and achieves the same result
+        (sanitizedTour as any).map = undefined;
+      }
       
       // Fix the nested arrays and stringified objects in facts
       if (sanitizedTour.facts && Array.isArray(sanitizedTour.facts)) {

@@ -208,8 +208,8 @@ export interface Tour extends Document {
       startDate: Date;
       endDate: Date;
     },
-    include: string;
-    exclude: string;
+    include: string[];
+    exclude: string[];
     facts: {
       id: mongoose.Types.ObjectId;
       title?: string;
