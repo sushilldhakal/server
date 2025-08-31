@@ -7,11 +7,15 @@ export interface PricingOption {
   category: string; // "adult", "child", "senior", "student", "custom"
   customCategory?: string;
   price: number;
-  discountEnabled: boolean;
-  discountPrice?: number;
-  discountDateRange?: {
-    from: Date;
-    to: Date;
+  discount: {
+    discountEnabled: boolean;
+    discountPrice?: number;
+    discountDateRange?: {
+      from: Date;
+      to: Date;
+    };
+    percentageOrPrice?: boolean;
+    discountPercentage?: number;
   };
   paxRange: {
     from: number;
@@ -156,6 +160,8 @@ export interface Tour extends Document {
     groupSize?: number;
     saleEnabled?: boolean;
     salePrice?: number;
+    // Price lock settings
+    priceLockDate?: Date;
     // Discount specific fields
     discountEnabled?: boolean;
     discountPrice?: number;
@@ -163,10 +169,8 @@ export interface Tour extends Document {
         from: Date;
         to: Date;
     };
-    paxRange?: {
         minSize: number;
         maxSize: number;
-    };
     pricingOptionsEnabled?: boolean;
     pricingGroups?: PricingGroup[];
     pricingOptions?: Array<{
@@ -313,6 +317,7 @@ export interface ReviewReply {
 export interface Review {
     _id?: mongoose.Types.ObjectId;
     user: mongoose.Types.ObjectId;
+    tour: mongoose.Types.ObjectId; // Add the tour reference to match MongoDB validation
     rating: number;
     comment: string;
     status: 'pending' | 'approved' | 'rejected';

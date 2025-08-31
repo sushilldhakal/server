@@ -1,5 +1,5 @@
 import mongoose, { Schema } from 'mongoose';
-import { IReview } from './reviewTypes';
+import { IReview, IReviewModel } from './reviewTypes';
 
 
 const reviewSchema = new Schema({
@@ -75,7 +75,9 @@ reviewSchema.index({ user: 1, tour: 1 }, { unique: true });
 
 // Static method to calculate average rating for a tour
 reviewSchema.statics.calculateAverageRating = async function(tourId) {
-    const stats = await this.aggregate([
+    // Use the model directly instead of 'this'
+    const Review = mongoose.model('Review');
+    const stats = await Review.aggregate([
         {
             $match: { tour: tourId }
         },
@@ -96,18 +98,48 @@ reviewSchema.statics.calculateAverageRating = async function(tourId) {
     }
 };
 
-// Call calculateAverageRating after save
-reviewSchema.post('save', function() {
-    // @ts-ignore
-    this.constructor.calculateAverageRating(this.tour);
-});
+// Create a simpler implementation for calculating average ratings directly
+// This will avoid the complex mongoose hooks and static methods
+export const calculateAverageRating = async (tourId: mongoose.Types.ObjectId | string) => {
+    try {
+        const aggregateResult = await mongoose.model('Review').aggregate([
+            {
+                $match: { tour: new mongoose.Types.ObjectId(tourId.toString()) }
+            },
+            {
+                $group: {
+                    _id: '$tour',
+                    averageRating: { $avg: '$rating' },
+                    numberOfReviews: { $sum: 1 }
+                }
+            }
+        ]);
 
-// Call calculateAverageRating before findOneAndDelete
-reviewSchema.pre('findOneAndDelete', function() {
-    // @ts-ignore
-    this.constructor.calculateAverageRating(this.tour);
-});
+        if (aggregateResult && aggregateResult.length > 0) {
+            await mongoose.model('Tour').findByIdAndUpdate(tourId, {
+                averageRating: aggregateResult[0].averageRating,
+                numberOfReviews: aggregateResult[0].numberOfReviews
+            });
+        }
+    } catch (error) {
+        console.error('Error calculating average rating:', error);
+    }
+};
 
 // Export the schema so it can be used by other models
 export { reviewSchema };
+
+// Create the model
 export const Review = mongoose.model<IReview>('Review', reviewSchema);
+
+// Call calculateAverageRating after save
+reviewSchema.post('save', async function() {
+    // @ts-ignore
+    await calculateAverageRating(this.tour);
+});
+
+// Call calculateAverageRating before findOneAndDelete
+reviewSchema.pre('findOneAndDelete', async function() {
+    // @ts-ignore
+    await calculateAverageRating(this.tour);
+});

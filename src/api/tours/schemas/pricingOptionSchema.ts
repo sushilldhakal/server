@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import discountSchema from './discountSchema';
+import paxSchema from './paxSchema';
 
 // Subschema for Pricing Option
 const pricingOptionSchema = new mongoose.Schema({
@@ -34,6 +35,27 @@ const pricingOptionSchema = new mongoose.Schema({
     type: discountSchema,
     required: function(this: any) {
       return this.discountEnabled;
+    }
+  },
+  // Passenger range for this pricing option
+  paxRange: {
+    type: paxSchema,
+    default: () => ({})
+  },
+  // Explicit minPax and maxPax fields
+  minPax: {
+    type: Number,
+    default: 1,
+    min: [1, 'Minimum passengers must be at least 1']
+  },
+  maxPax: {
+    type: Number,
+    default: 22,
+    validate: {
+      validator: function(this: any, value: number): boolean {
+        return value >= (this.minPax || 1);
+      },
+      message: 'Maximum passengers must be greater than or equal to minimum passengers'
     }
   },
  

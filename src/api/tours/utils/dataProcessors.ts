@@ -46,7 +46,6 @@ export const safeToNumber = (value: any, defaultValue: number = 0): number => {
  */
 export const processCategoryData = (category: any): Array<any> => {
   try {
-    console.log('Processing category data:', JSON.stringify(category, null, 2));
     
     // Handle category data as JSON string
     if (typeof category === 'string') {
@@ -104,7 +103,6 @@ export const processCategoryData = (category: any): Array<any> => {
       }];
     }
     
-    console.log('No valid category data found');
     return [];
   } catch (error) {
     console.error("Error processing category:", error);
@@ -124,22 +122,37 @@ export const processPricingOptions = (pricingOptionsData: any): PricingOption[] 
       return [];
     }
     
-    return parsed.map((option: any) => ({
-      name: option.name || option.optionName || '',
-      category: option.category || 'adult',
-      customCategory: option.customCategory,
-      price: safeToNumber(option.price || option.optionPrice),
-      discountEnabled: convertToBoolean(option.discountEnabled),
-      discountPrice: safeToNumber(option.discountPrice),
-      discountDateRange: option.discountDateRange ? {
-        from: new Date(option.discountDateRange.from || option.discountDateRange.startDate),
-        to: new Date(option.discountDateRange.to || option.discountDateRange.endDate)
-      } : undefined,
-      paxRange: {
-        from: safeToNumber(option.paxRange?.from || option.paxRange?.minSize, 1),
-        to: safeToNumber(option.paxRange?.to || option.paxRange?.maxSize, 10)
-      }
-    }));
+    return parsed.map((option: any) => {
+      // Handle both nested discount structure and flat structure for backward compatibility
+      const discount = option.discount || {};
+      const discountEnabled = convertToBoolean(discount.discountEnabled || option.discountEnabled);
+      const discountPrice = safeToNumber(discount.discountPrice || option.discountPrice);
+      const discountDateRange = discount.discountDateRange || option.discountDateRange;
+      const percentageOrPrice = convertToBoolean(discount.percentageOrPrice || option.percentageOrPrice);
+      const discountPercentage = safeToNumber(discount.discountPercentage || option.discountPercentage);
+
+      return {
+        name: option.name || option.optionName || '',
+        category: option.category || 'adult',
+        customCategory: option.customCategory,
+        price: safeToNumber(option.price || option.optionPrice),
+        // Create nested discount object to match schema
+        discount: {
+          discountEnabled,
+          discountPrice,
+          discountDateRange: discountDateRange ? {
+            from: new Date(discountDateRange.from || discountDateRange.startDate),
+            to: new Date(discountDateRange.to || discountDateRange.endDate)
+          } : undefined,
+          percentageOrPrice,
+          discountPercentage
+        },
+        paxRange: {
+          from: safeToNumber(option.paxRange?.from || option.paxRange?.minSize, 1),
+          to: safeToNumber(option.paxRange?.to || option.paxRange?.maxSize, 10)
+        }
+      };
+    });
   } catch (error) {
     console.error("Error processing pricing options:", error);
     return [];
@@ -354,57 +367,106 @@ export const extractTourFields = (req: any) => {
     fixedDeparture, multipleDates, tourDates, fixedDate, dateRanges,
     category, outline, itinerary, include, exclude, facts, faqs,
     gallery, map, location, author, enquiry, isSpecialOffer,
-    destination, groupSize, pricing, dates, ...rest
+    destination, groupSize, pricing, dates, priceLockDate, ...rest
   } = req.body;
 
   // Check if pricing is per person or per group
-  const pricingData = pricing || {};
+  // Parse pricing JSON string if it exists
+  let pricingData: any = {};
+  if (pricing) {
+    try {
+      pricingData = typeof pricing === 'string' ? JSON.parse(pricing) : pricing;
+      console.log('🔍 Parsed pricing data:', pricingData);
+    } catch (error) {
+      console.error('Error parsing pricing JSON:', error);
+      pricingData = pricing || {};
+    }
+  }
+  
   const isPerPerson = pricingData.pricePerPerson !== false; // Default to true if not specified
 
   // Extract nested pricing data if it exists
-  const nestedPricing = pricingData || {};
+  const nestedPricing: any = pricingData || {};
   const finalPricingOptions = pricingOptions || nestedPricing.pricingOptions;
-  const finalDiscountEnabled = discountEnabled !== undefined ? discountEnabled : nestedPricing.discount?.discountEnabled;
-  const finalDiscountPrice = discountPrice || nestedPricing.discount?.discountPrice;
-  const finalDiscountDateRange = discountDateRange || nestedPricing.discount?.discountDateRange;
+  
+  // Prioritize nested pricing discount over top-level fields
+  const finalDiscountEnabled = nestedPricing.discount?.discountEnabled !== undefined ? nestedPricing.discount.discountEnabled : discountEnabled;
+  const finalDiscountPrice = nestedPricing.discount?.discountPrice !== undefined ? nestedPricing.discount.discountPrice : discountPrice;
+  
+  // Extract priceLockDate from nested pricing object or top-level
+  const finalPriceLockDate = nestedPricing.priceLockDate || priceLockDate;
+  console.log('🔍 PriceLockDate extraction:', {
+    fromNested: nestedPricing.priceLockDate,
+    fromTopLevel: priceLockDate,
+    final: finalPriceLockDate
+  });
+  const finalDiscountDateRange = nestedPricing.discount?.dateRange || discountDateRange;
+  
   const finalPricingOptionsEnabled = pricingOptionsEnabled !== undefined ? pricingOptionsEnabled : nestedPricing.pricingOptionsEnabled;
 
-  return {
+  const result = {
     // Basic fields
     title, code, excerpt, description, coverImage, file, tourStatus,
     
     // Pricing fields (flat structure to match database schema)
     price: safeToNumber(price),
-    originalPrice: originalPrice ? safeToNumber(originalPrice) : undefined,
-    basePrice: basePrice ? safeToNumber(basePrice) : undefined,
+    originalPrice: safeToNumber(originalPrice),
+    basePrice: safeToNumber(basePrice),
     pricePerPerson: isPerPerson,
-    minSize: safeToNumber(minSize, 1),
-    maxSize: safeToNumber(maxSize, 10),
+    minSize: safeToNumber(minSize),
+    maxSize: safeToNumber(maxSize),
+    pricingOptionsEnabled: finalPricingOptionsEnabled,
     
-    // Discount fields (flat structure)
-    discountEnabled: convertToBoolean(finalDiscountEnabled),
-    discountPrice: finalDiscountPrice ? safeToNumber(finalDiscountPrice) : undefined,
-    discountDateRange: finalDiscountDateRange ? {
-      from: new Date(finalDiscountDateRange.from),
-      to: new Date(finalDiscountDateRange.to)
-    } : undefined,
+    // Discount data (flat structure)
+    discount: {
+      discountEnabled: convertToBoolean(finalDiscountEnabled),
+      discountPrice: safeToNumber(finalDiscountPrice),
+      discountDateRange: finalDiscountDateRange ? (() => {
+        try {
+          // Handle both string and object formats
+          const parsedRange = typeof finalDiscountDateRange === 'string' 
+            ? JSON.parse(finalDiscountDateRange) 
+            : finalDiscountDateRange;
+          
+          const fromDate = new Date(parsedRange.from);
+          const toDate = new Date(parsedRange.to);
+          
+          // Ensure dates are valid and to >= from
+          if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+            console.error('Invalid dates in discount range');
+            return undefined;
+          }
+          
+          if (toDate < fromDate) {
+            console.error('End date must be after start date');
+            return undefined;
+          }
+          
+          return { from: fromDate, to: toDate };
+        } catch (error) {
+          console.error('Error parsing discount date range:', error);
+          return undefined;
+        }
+      })() : undefined,
+      percentageOrPrice: false
+    },
     
-    // Pricing options (flat structure)
-    pricingOptionsEnabled: convertToBoolean(finalPricingOptionsEnabled),
-    pricingOptions: finalPricingOptions ? processPricingOptions(finalPricingOptions) : undefined,
+    // Dates data
+    dates: dates ? (() => {
+      try {
+        return typeof dates === 'string' ? JSON.parse(dates) : dates;
+      } catch (error) {
+        console.error('Error parsing dates:', error);
+        return undefined;
+      }
+    })() : undefined,
     
-    // Dates
-    fixedDeparture: convertToBoolean(fixedDeparture),
-    multipleDates: convertToBoolean(multipleDates),
-    tourDates: tourDates ? processTourDatesData(tourDates) : undefined,
-    dateRanges: dateRanges ? processDateRanges(dateRanges) : undefined,
-    
-    // Content fields
+    // Structured data fields
     category: category ? processCategoryData(category) : undefined,
     outline,
     itinerary: itinerary ? processItineraryData(itinerary) : undefined,
-    include: Array.isArray(include) ? include : (include ? [include] : []),
-    exclude: Array.isArray(exclude) ? exclude : (exclude ? [exclude] : []),
+    include: include ? include : undefined,
+    exclude: exclude ? exclude : undefined,
     facts: facts ? processFactsData(facts) : undefined,
     faqs: faqs ? processFaqsData(faqs) : undefined,
     gallery: gallery ? processGalleryData(gallery) : undefined,
@@ -415,10 +477,20 @@ export const extractTourFields = (req: any) => {
     enquiry: convertToBoolean(enquiry),
     isSpecialOffer: convertToBoolean(isSpecialOffer),
     destination,
+    // Price lock settings
+    priceLockDate: finalPriceLockDate ? new Date(finalPriceLockDate) : undefined,
     // Only set groupSize when pricing is per group (pricePerPerson = false)
     ...(isPerPerson ? {} : { groupSize: safeToNumber(groupSize, 1) }),
     
     // Any remaining fields
     ...rest
   };
+  
+  console.log('🎯 Final extracted data with priceLockDate:', {
+    priceLockDate: result.priceLockDate,
+    hasValue: !!finalPriceLockDate,
+    originalValue: finalPriceLockDate
+  });
+  
+  return result;
 };

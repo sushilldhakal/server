@@ -14,7 +14,17 @@ export class TourService {
    * Get all tours with filtering and pagination
    */
   static async getAllTours(filters: any = {}, paginationParams: PaginationParams) {
-    const baseQuery = { tourStatus: 'Published', ...filters };
+    const now = new Date();
+    const baseQuery = { 
+      tourStatus: 'Published',
+      // Filter out tours that are price locked (past their price lock date)
+      $or: [
+        { priceLockDate: { $exists: false } }, // Tours without price lock
+        { priceLockDate: null }, // Tours with null price lock
+        { priceLockDate: { $gt: now } } // Tours with future price lock date
+      ],
+      ...filters 
+    };
     
     // Use the paginate utility directly with the model and query
     const result = await paginate(TourModel, baseQuery, paginationParams);
@@ -44,7 +54,7 @@ export class TourService {
       .populate('author', 'name email roles')
       .populate('reviews.user', 'name email roles')
       .lean();
-
+    
     if (!tour) {
       throw createHttpError(404, 'Tour not found');
     }
@@ -177,7 +187,8 @@ export class TourService {
     
     const tourQuery = TourModel.find(query)
       .populate("author", "name roles")
-      .populate("category.categoryId", "name")
+      // Don't try to populate category.categoryId as it doesn't exist in the schema
+      // Instead, we'll use the category data as is
       .sort({ createdAt: -1 });
     
     return paginate(tourQuery, paginationParams);
@@ -215,7 +226,8 @@ export class TourService {
       .sort(sort)
       .limit(limit)
       .populate("author", "name roles")
-      .populate("category.categoryId", "name")
+      // Don't try to populate category.categoryId as it doesn't exist in the schema
+      // Instead, we'll use the category data as is
       .lean();
   }
 

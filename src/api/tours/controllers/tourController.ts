@@ -104,7 +104,6 @@ export const updateTour = asyncHandler(async (req: Request, res: Response) => {
   
   // Extract and process update data
   const updateData = extractTourFields(req);
-  
   // Remove undefined fields to avoid overwriting existing data
   Object.keys(updateData).forEach(key => {
     if (updateData[key] === undefined) {
@@ -116,6 +115,7 @@ export const updateTour = asyncHandler(async (req: Request, res: Response) => {
   const authorId = userRoles === 'admin' ? undefined : userId;
   
   const updatedTour = await TourService.updateTour(tourId, updateData, authorId);
+  
   sendSuccess(res, updatedTour, RESPONSE_MESSAGES.TOUR_UPDATED);
 });
 
@@ -208,7 +208,6 @@ export const getUserTours = asyncHandler(async (req: Request, res: Response) => 
   const authReq = req as AuthRequest;
   const { userId } = req.params; // Use userId from route parameter
   const isAdmin = authReq.roles === 'admin';
-  console.log("user id for list tours", authReq.userId, userId);
   // Security check: users can only access their own tours unless they're admin
   if (!isAdmin && authReq.userId !== userId) {
     return sendError(res, 'Access denied: Cannot access other user\'s tours', 403);

@@ -131,6 +131,17 @@ const tourSchema = new mongoose.Schema<Tour>(
       type: Boolean,
       default: true,
     },
+    // Tour size limits
+    minSize: {
+      type: Number,
+      default: 1,
+      min: [1, 'Minimum tour size must be at least 1']
+    },
+    maxSize: {
+      type: Number,
+      default: 10,
+      // Remove the validator here - we'll handle it in the pre-validate hook instead
+    },
     groupSize: {
       type: Number,
       required: function(this: any): boolean {
@@ -148,9 +159,7 @@ const tourSchema = new mongoose.Schema<Tour>(
         message: 'Group size must be at least 1 when pricing is per group'
       }
     },
-    paxRange: {
-      type: paxSchema,
-    },
+    // paxRange moved to each pricing option for better structure
     saleEnabled: {
       type: Boolean,
       default: false, 
@@ -160,6 +169,13 @@ const tourSchema = new mongoose.Schema<Tour>(
       required: function(this: any): boolean {
         return this.saleEnabled;
       },
+    },
+    
+    // Price lock settings
+    priceLockDate: {
+      type: Date,
+      required: false,
+      index: true // Add index for filtering tours by price lock date
     },
     
     // Discount related fields
@@ -321,14 +337,48 @@ tourSchema.methods.hasActiveDiscount = function(this: any): boolean {
   return !!(discountStart && discountEnd && now >= discountStart && now <= discountEnd);
 };
 
-// Pre-save middleware to calculate average rating
+// Define interface for the document in pre-save middleware
+interface TourDocument extends Document {
+  reviews?: Array<{ rating: number; status: string; [key: string]: any }>;
+  averageRating?: number;
+  approvedReviewCount?: number;
+  reviewCount?: number;
+}
+
+// Pre-validate middleware to validate minSize and maxSize relationship
+tourSchema.pre('validate', function(next) {
+  // Set default values if undefined
+  if (this.minSize === undefined) {
+    this.minSize = 1;
+  }
+  
+  if (this.maxSize === undefined) {
+    this.maxSize = 10;
+  }
+  
+  // Ensure maxSize is always >= minSize
+  if (this.maxSize < this.minSize) {
+    // For validation purposes, adjust maxSize to match minSize
+    this.maxSize = this.minSize;
+  }
+  
+  next();
+});
+
+// Pre-save middleware to ensure data consistency
 tourSchema.pre('save', function(next) {
+  // Additional pre-save operations if needed
+  next();
+});
+
+// Pre-save middleware to calculate average rating
+tourSchema.pre('save', function(this: TourDocument, next) {
   // Calculate average rating if reviews exist
   if (this.reviews && this.reviews.length > 0) {
-    const approvedReviews = this.reviews.filter((review: any) => review.status === 'approved');
+    const approvedReviews = this.reviews.filter((review) => review.status === 'approved');
     
     if (approvedReviews.length > 0) {
-      const totalRating = approvedReviews.reduce((sum: number, review: any) => sum + review.rating, 0);
+      const totalRating = approvedReviews.reduce((sum: number, review) => sum + review.rating, 0);
       this.averageRating = totalRating / approvedReviews.length;
       this.approvedReviewCount = approvedReviews.length;
     }
@@ -349,6 +399,19 @@ tourSchema.statics.findWithActiveDiscounts = function() {
     'discount.discountDateRange.from': { $lte: now },
     'discount.discountDateRange.to': { $gte: now },
     tourStatus: 'Published'
+  });
+};
+
+// Find tours that are available for booking (not price locked)
+tourSchema.statics.findAvailableForBooking = function() {
+  const now = new Date();
+  return this.find({
+    tourStatus: 'Published',
+    $or: [
+      { priceLockDate: { $exists: false } }, // Tours without price lock
+      { priceLockDate: null }, // Tours with null price lock
+      { priceLockDate: { $gt: now } } // Tours with future price lock date
+    ]
   });
 };
 

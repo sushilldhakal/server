@@ -1,19 +1,19 @@
 import mongoose from 'mongoose';
 
-// Base date range schema used throughout the application
+// Schema for passenger range (min and max pax)
 const paxSchema = new mongoose.Schema({
-    minSize: {
+    minPax: {
         type: Number,
         default: 1,
         min: [1, 'Minimum pax must be at least 1']
       },
-      maxSize: {
+      maxPax: {
         type: Number,
         default: 10,
         validate: {
           validator: function(value: number): boolean {
             // @ts-ignore - 'this' context in mongoose validators
-            return value >= this.minSize;
+            return value >= this.minPax;
           },
           message: 'Maximum pax must be greater than or equal to minimum pax'
         }

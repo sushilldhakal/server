@@ -153,6 +153,7 @@ export const addReview = async (req: Request, res: Response) => {
             // Add new review
             tour.reviews.push({
                 user: new mongoose.Types.ObjectId(userId),
+                tour: new mongoose.Types.ObjectId(tourId), // Add the tour reference to satisfy validation
                 rating: roundedRating,
                 comment,
                 status: 'pending', // All new reviews start as pending
