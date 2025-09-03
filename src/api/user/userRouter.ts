@@ -11,12 +11,15 @@ import {
   verifyUser, 
   forgotPassword, 
   resetPassword,
-  approveSellerApplication
+  getSellerApplications,
+  approveSellerApplication,
+  rejectSellerApplication,
+  deleteSellerApplication
 } from "./userController";
 import { uploadAvatar, getUserAvatar } from './userAvatarController';
 import { body, param } from 'express-validator';
-import {authenticate, isAdminOrSeller} from "../../middlewares/authenticate";
-import { upload, uploadNone, uploadAvatar as uploadAvatarMiddleware } from '../../middlewares/multer';
+import {authenticate, isAdminOrSeller, isAdmin} from "../../middlewares/authenticate";
+import { upload, uploadNone, uploadAvatar as uploadAvatarMiddleware, uploadSellerDocs } from '../../middlewares/multer';
 
 const userRouter = express.Router();
 
@@ -31,6 +34,9 @@ userRouter.post('/login', [body('email').isEmail(), body('password').isLength({ 
 
 userRouter.get('/all',authenticate, getAllUsers);
 
+// Seller application routes (admin only) - MUST come before /:userId route
+userRouter.get('/seller-applications', authenticate, getSellerApplications);
+
 userRouter.get('/:userId', [param('userId').isMongoId(), authenticate], getUserById);
 
 
@@ -43,15 +49,15 @@ userRouter.get('/setting/:userId', authenticate, isAdminOrSeller as any, getUser
 userRouter.get('/setting/:userId/key', authenticate as any, isAdminOrSeller as any, getDecryptedApiKey as any);
 
 userRouter.patch(
-    '/:userId',authenticate,updateUser
+    '/:userId', uploadSellerDocs, authenticate, updateUser
   );
 
-userRouter.delete('/:userId',[param('id').isMongoId(), authenticate], deleteUser);
+userRouter.delete('/:userId',[param('userId').isMongoId(), authenticate], deleteUser);
 
 userRouter.post('/change-role',authenticate, changeUserRole);
-
-// New route for approving seller applications (admin only)
-userRouter.post('/:userId/approve-seller', [param('userId').isMongoId(), authenticate], approveSellerApplication);
+userRouter.patch('/:userId/approve-seller', [param('userId').isMongoId(), authenticate], approveSellerApplication);
+userRouter.patch('/:userId/reject-seller', [param('userId').isMongoId(), authenticate], rejectSellerApplication);
+userRouter.delete('/:userId/delete-seller', [param('userId').isMongoId(), authenticate], deleteSellerApplication);
 
 userRouter.post('/login/verify',[
   body('token').notEmpty()

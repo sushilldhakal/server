@@ -57,35 +57,53 @@ export const decrypt = (encryptedText: string): string => {
   if (!encryptedText) return '';
   
   try {
-    // Detect if the input looks like it's already an unencrypted API key
-    if (encryptedText.length > 10 && !encryptedText.includes(':')) {
+    console.log('🔍 Decrypt input:', { 
+      input: encryptedText, 
+      length: encryptedText.length, 
+      hasColon: encryptedText.includes(':') 
+    });
+    
+    // Check if it's in our encryption format (IV:encryptedData)
+    const textParts = encryptedText.split(':');
+    if (textParts.length !== 2) {
+      console.log('🔍 Not encrypted format, returning as-is');
       return encryptedText;
     }
     
-    const textParts = encryptedText.split(':');
-    if (textParts.length !== 2) {
-      
-      // Special handling for 8-character strings which might be placeholders
-      if (encryptedText.length === 8 && encryptedText === '********') {
-        return '';
-      }
-      
-      return encryptedText; // Return as-is if it doesn't look like our encryption format
+    const ivHex = textParts[0];
+    const encryptedData = textParts[1];
+    
+    console.log('🔍 Decryption parts:', {
+      ivHex: ivHex,
+      ivLength: ivHex.length,
+      encryptedData: encryptedData.substring(0, 20) + '...',
+      encryptedDataLength: encryptedData.length
+    });
+    
+    // Validate IV format (should be 32 hex characters for 16 bytes)
+    if (ivHex.length !== 32 || !/^[0-9a-fA-F]+$/.test(ivHex)) {
+      console.log('🔍 Invalid IV format, returning as-is');
+      return encryptedText;
     }
     
-    const iv = Buffer.from(textParts[0], 'hex');
-    const encryptedData = textParts[1];
-    const key = getKey(); // Get a fixed-length key
+    const iv = Buffer.from(ivHex, 'hex');
+    const key = getKey();
     
+    console.log('🔍 Starting decryption with key length:', key.length);
     
     const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
-    
     let decrypted = decipher.update(encryptedData, 'base64', 'utf8');
     decrypted += decipher.final('utf8');
     
+    console.log('🔍 Decryption successful:', {
+      decryptedLength: decrypted.length,
+      decryptedPreview: decrypted.substring(0, 5) + '...'
+    });
+    
     return decrypted;
   } catch (error) {
-    console.error('Decryption error:', error);
-    return '';
+    console.error('🔍 Decryption error:', error);
+    console.log('🔍 Returning original text due to error');
+    return encryptedText; // Return original if decryption fails
   }
 };

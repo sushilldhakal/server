@@ -69,6 +69,28 @@ const sellerInfoSchema = new mongoose.Schema({
   },
   approvedAt: {
     type: Date
+  },
+  rejectionReason: {
+    type: String
+  },
+  rejectedAt: {
+    type: Date
+  },
+  reapplicationCount: {
+    type: Number,
+    default: 1
+  },
+  documents: {
+    type: mongoose.Schema.Types.Mixed // Store Cloudinary document URLs
+  },
+  contactPerson: {
+    type: String
+  },
+  phone: {
+    type: String
+  },
+  alternatePhone: {
+    type: String
   }
 });
 

@@ -26,6 +26,13 @@ export interface SellerInfo {
   isApproved: boolean;
   appliedAt: Date;
   approvedAt?: Date;
+  rejectionReason?: string;
+  rejectedAt?: Date;
+  reapplicationCount?: number;
+  documents?: any;
+  contactPerson?: string;
+  phone?: string;
+  alternatePhone?: string;
 }
 
 export interface User{

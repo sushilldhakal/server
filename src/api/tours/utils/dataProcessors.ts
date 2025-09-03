@@ -122,7 +122,7 @@ export const processPricingOptions = (pricingOptionsData: any): PricingOption[] 
       return [];
     }
     
-    return parsed.map((option: any) => {
+    return parsed.map((option: any, index: number) => {
       // Handle both nested discount structure and flat structure for backward compatibility
       const discount = option.discount || {};
       const discountEnabled = convertToBoolean(discount.discountEnabled || option.discountEnabled);
@@ -131,7 +131,12 @@ export const processPricingOptions = (pricingOptionsData: any): PricingOption[] 
       const percentageOrPrice = convertToBoolean(discount.percentageOrPrice || option.percentageOrPrice);
       const discountPercentage = safeToNumber(discount.discountPercentage || option.discountPercentage);
 
+      // Generate stable ID if not provided, or preserve existing ID
+      // Include index to ensure uniqueness even when processed at the same time
+      const stableId = option.id || `pricing_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 9)}`;
+
       return {
+        id: stableId, // Add stable ID field
         name: option.name || option.optionName || '',
         category: option.category || 'adult',
         customCategory: option.customCategory,
@@ -148,8 +153,8 @@ export const processPricingOptions = (pricingOptionsData: any): PricingOption[] 
           discountPercentage
         },
         paxRange: {
-          from: safeToNumber(option.paxRange?.from || option.paxRange?.minSize, 1),
-          to: safeToNumber(option.paxRange?.to || option.paxRange?.maxSize, 10)
+          minPax: safeToNumber(option.paxRange?.minPax || option.paxRange?.from || option.minPax, 1),
+          maxPax: safeToNumber(option.paxRange?.maxPax || option.paxRange?.to || option.maxPax, 10)
         }
       };
     });
@@ -332,7 +337,7 @@ export const processLocationData = (location: any) => {
 };
 
 /**
- * Process tour dates data
+ * Process tour dates data with comprehensive handling for all date types
  */
 export const processTourDatesData = (tourDates: any) => {
   try {
@@ -340,16 +345,85 @@ export const processTourDatesData = (tourDates: any) => {
     
     if (!parsed) return undefined;
     
-    return {
+    console.log('🔍 Processing tour dates data:', parsed);
+    console.log('🔍 Raw dateRange field:', parsed.dateRange);
+    console.log('🔍 dateRange type:', typeof parsed.dateRange);
+    console.log('🔍 Full parsed object:', JSON.stringify(parsed, null, 2));
+    
+    // Process departures array for multiple departure type
+    const processedDepartures = Array.isArray(parsed.departures) 
+      ? parsed.departures.map((departure: any) => {
+          console.log('🔍 Processing individual departure:', departure);
+          console.log('🔍 Departure recurrencePattern:', departure.recurrencePattern);
+          console.log('🔍 Departure selectedPricingOptions:', departure.selectedPricingOptions);
+          console.log('🔍 Departure pricingCategory:', departure.pricingCategory);
+          
+          return {
+            id: departure.id || `departure_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            label: departure.label || 'Departure',
+            dateRange: departure.dateRange ? {
+              from: new Date(departure.dateRange.from),
+              to: new Date(departure.dateRange.to)
+            } : undefined,
+            isRecurring: convertToBoolean(departure.isRecurring),
+            recurrencePattern: departure.recurrencePattern || (departure.isRecurring ? 'weekly' : undefined),
+            recurrenceInterval: safeToNumber(departure.recurrenceInterval, 1),
+            recurrenceEndDate: departure.recurrenceEndDate ? new Date(departure.recurrenceEndDate) : undefined,
+            selectedPricingOptions: Array.isArray(departure.selectedPricingOptions) 
+              ? departure.selectedPricingOptions 
+              : (Array.isArray(departure.pricingCategory) ? departure.pricingCategory : []),
+            pricingCategory: Array.isArray(departure.pricingCategory) ? departure.pricingCategory : []
+          };
+        })
+      : [];
+    
+    // Process main date range for fixed dates - map to defaultDateRange for schema compatibility
+    const processedDateRange = parsed.dateRange ? {
+      from: new Date(parsed.dateRange.from),
+      to: new Date(parsed.dateRange.to)
+    } : undefined;
+    
+    const result = {
+      scheduleType: parsed.scheduleType || 'flexible',
       days: safeToNumber(parsed.days),
       nights: safeToNumber(parsed.nights),
-      scheduleType: parsed.scheduleType || 'flexible',
-      defaultDateRange: parsed.defaultDateRange ? {
-        from: new Date(parsed.defaultDateRange.from),
-        to: new Date(parsed.defaultDateRange.to)
-      } : undefined,
-      departures: Array.isArray(parsed.departures) ? parsed.departures : []
+      
+      // Fixed date fields - use defaultDateRange to match schema
+      defaultDateRange: processedDateRange,
+      
+      // Multiple departures fields
+      departures: processedDepartures,
+      
+      // Recurring fields
+      isRecurring: convertToBoolean(parsed.isRecurring),
+      recurrencePattern: parsed.recurrencePattern || 'weekly',
+      recurrenceInterval: safeToNumber(parsed.recurrenceInterval, 1),
+      recurrenceEndDate: parsed.recurrenceEndDate ? new Date(parsed.recurrenceEndDate) : undefined,
+      
+      // Pricing category - for multiple departures, collect all selectedPricingOptions from all departures
+      pricingCategory: (() => {
+        if (parsed.scheduleType === 'multiple' && processedDepartures.length > 0) {
+          // Collect all unique pricing options from all departures
+          const allPricingOptions = new Set();
+          processedDepartures.forEach((departure: any) => {
+            if (Array.isArray(departure.selectedPricingOptions)) {
+              departure.selectedPricingOptions.forEach((option: string) => {
+                allPricingOptions.add(option);
+              });
+            }
+          });
+          return Array.from(allPricingOptions);
+        } else {
+          // For flexible and fixed dates, use the main pricingCategory
+          return Array.isArray(parsed.pricingCategory) 
+            ? parsed.pricingCategory 
+            : (parsed.pricingCategory ? [parsed.pricingCategory] : []);
+        }
+      })()
     };
+    
+    console.log('🎯 Processed dates result:', result);
+    return result;
   } catch (error) {
     console.error("Error processing tour dates data:", error);
     return undefined;
@@ -376,7 +450,6 @@ export const extractTourFields = (req: any) => {
   if (pricing) {
     try {
       pricingData = typeof pricing === 'string' ? JSON.parse(pricing) : pricing;
-      console.log('🔍 Parsed pricing data:', pricingData);
     } catch (error) {
       console.error('Error parsing pricing JSON:', error);
       pricingData = pricing || {};
@@ -395,11 +468,7 @@ export const extractTourFields = (req: any) => {
   
   // Extract priceLockDate from nested pricing object or top-level
   const finalPriceLockDate = nestedPricing.priceLockDate || priceLockDate;
-  console.log('🔍 PriceLockDate extraction:', {
-    fromNested: nestedPricing.priceLockDate,
-    fromTopLevel: priceLockDate,
-    final: finalPriceLockDate
-  });
+
   const finalDiscountDateRange = nestedPricing.discount?.dateRange || discountDateRange;
   
   const finalPricingOptionsEnabled = pricingOptionsEnabled !== undefined ? pricingOptionsEnabled : nestedPricing.pricingOptionsEnabled;
@@ -451,15 +520,11 @@ export const extractTourFields = (req: any) => {
       percentageOrPrice: false
     },
     
-    // Dates data
-    dates: dates ? (() => {
-      try {
-        return typeof dates === 'string' ? JSON.parse(dates) : dates;
-      } catch (error) {
-        console.error('Error parsing dates:', error);
-        return undefined;
-      }
-    })() : undefined,
+    // Tour dates data - map to correct field name for database schema
+    tourDates: dates ? processTourDatesData(dates) : undefined,
+    
+    // Pricing options processing
+    pricingOptions: finalPricingOptions ? processPricingOptions(finalPricingOptions) : undefined,
     
     // Structured data fields
     category: category ? processCategoryData(category) : undefined,
@@ -485,12 +550,6 @@ export const extractTourFields = (req: any) => {
     // Any remaining fields
     ...rest
   };
-  
-  console.log('🎯 Final extracted data with priceLockDate:', {
-    priceLockDate: result.priceLockDate,
-    hasValue: !!finalPriceLockDate,
-    originalValue: finalPriceLockDate
-  });
   
   return result;
 };

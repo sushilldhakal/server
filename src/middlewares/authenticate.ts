@@ -51,4 +51,19 @@ const isAdminOrSeller = (req: AuthRequest, res: Response, next: NextFunction) =>
   }
 };
 
-export { authenticate, isAdminOrSeller };
+const isAdmin = (req: AuthRequest, res: Response, next: NextFunction) => {
+  if (req.roles === 'admin') {
+    next();
+  } else {
+    next(createHttpError(403, 'Access forbidden: Admins and Sellers only'));
+  }
+};
+const isSeller = (req: AuthRequest, res: Response, next: NextFunction) => {
+  if (req.roles === 'seller') {
+    next();
+  } else {
+    next(createHttpError(403, 'Access forbidden: Sellers only'));
+  }
+};
+
+export { authenticate, isAdminOrSeller, isAdmin, isSeller };

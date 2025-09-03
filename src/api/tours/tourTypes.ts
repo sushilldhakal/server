@@ -18,8 +18,8 @@ export interface PricingOption {
     discountPercentage?: number;
   };
   paxRange: {
-    from: number;
-    to: number;
+    minPax: number;
+    maxPax: number;
   };
 }
 
@@ -185,8 +185,8 @@ export interface Tour extends Document {
             to: Date;
         };
         paxRange: {
-            from: number;
-            to: number;
+            minPax: number;
+            maxPax: number;
         };
     }>;
     authorName: User;

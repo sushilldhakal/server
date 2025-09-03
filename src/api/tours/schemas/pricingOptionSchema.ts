@@ -4,6 +4,12 @@ import paxSchema from './paxSchema';
 
 // Subschema for Pricing Option
 const pricingOptionSchema = new mongoose.Schema({
+  id: {
+    type: String,
+    required: true,
+    unique: false, // Not globally unique, just within the tour
+    index: true
+  },
   name: {
     type: String,
     required: true,

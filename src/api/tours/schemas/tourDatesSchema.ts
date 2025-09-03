@@ -14,7 +14,7 @@ const tourDatesSchema = new mongoose.Schema({
   },
   scheduleType: {
     type: String,
-    enum: ['flexible', 'fixed', 'recurring'],
+    enum: ['flexible', 'fixed', 'multiple', 'recurring'],
     default: 'flexible',
     index: true // Add index for queries that filter by schedule type
   },
@@ -27,14 +27,28 @@ const tourDatesSchema = new mongoose.Schema({
   },
   departures: {
     type: [departureSchema],
-    default: [],
-    validate: {
-      validator: function(departures: any[]) {
-        // @ts-ignore - 'this' context in mongoose validators
-        return this.scheduleType !== 'fixed' || departures.length > 0;
-      },
-      message: 'At least one departure is required for fixed schedule type'
-    }
+    default: []
+  },
+  pricingCategory: {
+    type: [String], // Array of pricing category IDs
+    default: []
+  },
+  isRecurring: {
+    type: Boolean,
+    default: false
+  },
+  recurrencePattern: {
+    type: String,
+    enum: ['daily', 'weekly', 'monthly', 'yearly'],
+    default: 'weekly'
+  },
+  recurrenceInterval: {
+    type: Number,
+    min: 1,
+    default: 1
+  },
+  recurrenceEndDate: {
+    type: Date
   }
 }, { 
   _id: false,
