@@ -3,7 +3,6 @@ import {Tour} from "./tourTypes";
 import paxSchema from "./schemas/paxSchema";
 // Import all schemas from the schemas directory
 import {
-  categorySchema,
   dateRangeSchema,
   departureSchema,
   discountSchema,
@@ -27,11 +26,13 @@ const tourSchema = new mongoose.Schema<Tour>(
       trim: true,
       index: true // Add index for faster title search
     },
-    category: {
-      type: [categorySchema],
+    // Reference global categories
+    category: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'GlobalCategory',
       required: true,
       index: true // Add index for category filtering
-    },
+    }],
     code: {
       type: String,
       required: true,
@@ -39,9 +40,10 @@ const tourSchema = new mongoose.Schema<Tour>(
       trim: true,
       index: true // Add index for code lookup
     },
+    // Reference global destination
     destination: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Destination',
+      ref: 'GlobalDestination',
       required: false,
       index: true // Add index for destination filtering
     },

@@ -43,66 +43,50 @@ export const safeToNumber = (value: any, defaultValue: number = 0): number => {
 
 /**
  * Process category data from form submission
+ * Returns array of ObjectIds for the category field
  */
-export const processCategoryData = (category: any): Array<any> => {
+export const processCategoryData = (category: any): Array<mongoose.Types.ObjectId> => {
   try {
-    
+
     // Handle category data as JSON string
     if (typeof category === 'string') {
       try {
         const parsedCategories = JSON.parse(category);
         if (Array.isArray(parsedCategories)) {
-          return parsedCategories.map((cat: any) => ({
-            value: cat.categoryId || cat.id || cat.value || new mongoose.Types.ObjectId().toString(),
-            label: cat.categoryName || cat.name || cat.label || 'Category',
-            categoryId: new mongoose.Types.ObjectId(cat.categoryId || cat.id || cat.value),
-            categoryName: cat.categoryName || cat.name || cat.label || 'Category'
-          }));
+          return parsedCategories.map((cat: any) => {
+            const catId = cat.categoryId || cat.id || cat.value;
+            return new mongoose.Types.ObjectId(catId);
+          });
         }
       } catch (parseError) {
         console.error('Error parsing category JSON string:', parseError);
       }
     }
-    
+
     // Handle special case with mixed object structure
     if (category && typeof category === 'object' && !Array.isArray(category) && category[''] && typeof category[''] === 'string') {
       const parsedCategories = JSON.parse(category['']);
-      return parsedCategories.map((cat: any) => ({
-        value: cat.id || cat.value || new mongoose.Types.ObjectId().toString(),
-        label: cat.name || cat.label || 'Category',
-        categoryId: new mongoose.Types.ObjectId(cat.id || cat.value),
-        categoryName: cat.name || cat.label || 'Category'
-      }));
+      return parsedCategories.map((cat: any) => {
+        const catId = cat.id || cat.value || cat.categoryId;
+        return new mongoose.Types.ObjectId(catId);
+      });
     }
-    
+
     // Handle array of categories
     if (Array.isArray(category)) {
       return category.map((cat: any) => {
         const catId = cat.id || cat.value || cat.categoryId;
-        const catName = cat.name || cat.label || cat.categoryName;
-        
-        return {
-          value: catId,
-          label: catName,
-          categoryId: new mongoose.Types.ObjectId(catId),
-          categoryName: catName
-        };
+        return new mongoose.Types.ObjectId(catId);
       });
     }
-    
+
     // Handle single category object
     if (category && typeof category === 'object') {
       const catId = category.id || category.value || category.categoryId;
-      const catName = category.name || category.label || category.categoryName;
-      
-      return [{
-        value: catId,
-        label: catName,
-        categoryId: new mongoose.Types.ObjectId(catId),
-        categoryName: catName
-      }];
+
+      return [new mongoose.Types.ObjectId(catId)];
     }
-    
+
     return [];
   } catch (error) {
     console.error("Error processing category:", error);
@@ -116,12 +100,12 @@ export const processCategoryData = (category: any): Array<any> => {
 export const processPricingOptions = (pricingOptionsData: any): PricingOption[] => {
   try {
     const parsed = parseJsonField(pricingOptionsData, []);
-    
+
     if (!Array.isArray(parsed)) {
       console.warn('Pricing options is not an array:', parsed);
       return [];
     }
-    
+
     return parsed.map((option: any, index: number) => {
       // Handle both nested discount structure and flat structure for backward compatibility
       const discount = option.discount || {};
@@ -170,11 +154,11 @@ export const processPricingOptions = (pricingOptionsData: any): PricingOption[] 
 export const processDateRanges = (dateRangesData: any): DateRange[] => {
   try {
     const parsed = parseJsonField(dateRangesData, []);
-    
+
     if (!Array.isArray(parsed)) {
       return [];
     }
-    
+
     return parsed.map((range: any) => ({
       label: range.label || 'Date Range',
       startDate: new Date(range.startDate || range.dateRange?.from),
@@ -193,11 +177,11 @@ export const processDateRanges = (dateRangesData: any): DateRange[] => {
 export const processItineraryData = (itinerary: any) => {
   try {
     const parsed = parseJsonField(itinerary, []);
-    
+
     if (!Array.isArray(parsed)) {
       return [];
     }
-    
+
     return parsed.map((item: any) => ({
       day: item.day || '',
       title: item.title || '',
@@ -216,14 +200,14 @@ export const processItineraryData = (itinerary: any) => {
 export const processFactsData = (facts: any) => {
   try {
     const parsed = parseJsonField(facts, []);
-    
+
     if (!Array.isArray(parsed)) {
       return [];
     }
-    
+
     return parsed.map((fact: any) => {
       let factValue = fact.value;
-      
+
       // Handle stringified arrays and objects
       if (typeof factValue === 'string' && (factValue.startsWith('[') || factValue.startsWith('{'))) {
         try {
@@ -232,14 +216,14 @@ export const processFactsData = (facts: any) => {
           console.warn('Could not parse fact value:', factValue);
         }
       }
-      
+
       // Ensure proper structure based on field type
       if (fact.field_type === 'Multi Select' && !Array.isArray(factValue)) {
         factValue = factValue ? [factValue] : [];
       } else if (fact.field_type === 'Plain Text' && Array.isArray(factValue)) {
         factValue = factValue.length > 0 ? factValue[0] : '';
       }
-      
+
       // Set defaults for empty values
       if (!factValue || (Array.isArray(factValue) && factValue.length === 0)) {
         if (fact.field_type === 'Plain Text') {
@@ -248,7 +232,7 @@ export const processFactsData = (facts: any) => {
           factValue = [];
         }
       }
-      
+
       return {
         title: fact.title || '',
         field_type: fact.field_type || 'Plain Text',
@@ -268,11 +252,11 @@ export const processFactsData = (facts: any) => {
 export const processFaqsData = (faqs: any) => {
   try {
     const parsed = parseJsonField(faqs, []);
-    
+
     if (!Array.isArray(parsed)) {
       return [];
     }
-    
+
     return parsed.map((faq: any) => ({
       question: faq.question || '',
       answer: faq.answer || ''
@@ -289,11 +273,11 @@ export const processFaqsData = (faqs: any) => {
 export const processGalleryData = (gallery: any) => {
   try {
     const parsed = parseJsonField(gallery, []);
-    
+
     if (!Array.isArray(parsed)) {
       return [];
     }
-    
+
     return parsed.map((item: any) => ({
       image: item.image || item.url || ''
     }));
@@ -309,17 +293,17 @@ export const processGalleryData = (gallery: any) => {
 export const processLocationData = (location: any) => {
   try {
     const parsed = parseJsonField(location);
-    
+
     if (!parsed) return undefined;
-    
+
     // Validate required fields
     const requiredFields = ['street', 'city', 'state', 'country', 'lat', 'lng'];
     const missingFields = requiredFields.filter(field => !parsed[field]);
-    
+
     if (missingFields.length > 0) {
       console.warn(`Missing required location fields: ${missingFields.join(', ')}`);
     }
-    
+
     return {
       street: String(parsed.street || ''),
       city: String(parsed.city || ''),
@@ -342,64 +326,64 @@ export const processLocationData = (location: any) => {
 export const processTourDatesData = (tourDates: any) => {
   try {
     const parsed = parseJsonField(tourDates);
-    
+
     if (!parsed) return undefined;
-    
+
     console.log('🔍 Processing tour dates data:', parsed);
     console.log('🔍 Raw dateRange field:', parsed.dateRange);
     console.log('🔍 dateRange type:', typeof parsed.dateRange);
     console.log('🔍 Full parsed object:', JSON.stringify(parsed, null, 2));
-    
+
     // Process departures array for multiple departure type
-    const processedDepartures = Array.isArray(parsed.departures) 
+    const processedDepartures = Array.isArray(parsed.departures)
       ? parsed.departures.map((departure: any) => {
-          console.log('🔍 Processing individual departure:', departure);
-          console.log('🔍 Departure recurrencePattern:', departure.recurrencePattern);
-          console.log('🔍 Departure selectedPricingOptions:', departure.selectedPricingOptions);
-          console.log('🔍 Departure pricingCategory:', departure.pricingCategory);
-          
-          return {
-            id: departure.id || `departure_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            label: departure.label || 'Departure',
-            dateRange: departure.dateRange ? {
-              from: new Date(departure.dateRange.from),
-              to: new Date(departure.dateRange.to)
-            } : undefined,
-            isRecurring: convertToBoolean(departure.isRecurring),
-            recurrencePattern: departure.recurrencePattern || (departure.isRecurring ? 'weekly' : undefined),
-            recurrenceInterval: safeToNumber(departure.recurrenceInterval, 1),
-            recurrenceEndDate: departure.recurrenceEndDate ? new Date(departure.recurrenceEndDate) : undefined,
-            selectedPricingOptions: Array.isArray(departure.selectedPricingOptions) 
-              ? departure.selectedPricingOptions 
-              : (Array.isArray(departure.pricingCategory) ? departure.pricingCategory : []),
-            pricingCategory: Array.isArray(departure.pricingCategory) ? departure.pricingCategory : []
-          };
-        })
+        console.log('🔍 Processing individual departure:', departure);
+        console.log('🔍 Departure recurrencePattern:', departure.recurrencePattern);
+        console.log('🔍 Departure selectedPricingOptions:', departure.selectedPricingOptions);
+        console.log('🔍 Departure pricingCategory:', departure.pricingCategory);
+
+        return {
+          id: departure.id || `departure_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          label: departure.label || 'Departure',
+          dateRange: departure.dateRange ? {
+            from: new Date(departure.dateRange.from),
+            to: new Date(departure.dateRange.to)
+          } : undefined,
+          isRecurring: convertToBoolean(departure.isRecurring),
+          recurrencePattern: departure.recurrencePattern || (departure.isRecurring ? 'weekly' : undefined),
+          recurrenceInterval: safeToNumber(departure.recurrenceInterval, 1),
+          recurrenceEndDate: departure.recurrenceEndDate ? new Date(departure.recurrenceEndDate) : undefined,
+          selectedPricingOptions: Array.isArray(departure.selectedPricingOptions)
+            ? departure.selectedPricingOptions
+            : (Array.isArray(departure.pricingCategory) ? departure.pricingCategory : []),
+          pricingCategory: Array.isArray(departure.pricingCategory) ? departure.pricingCategory : []
+        };
+      })
       : [];
-    
+
     // Process main date range for fixed dates - map to defaultDateRange for schema compatibility
     const processedDateRange = parsed.dateRange ? {
       from: new Date(parsed.dateRange.from),
       to: new Date(parsed.dateRange.to)
     } : undefined;
-    
+
     const result = {
       scheduleType: parsed.scheduleType || 'flexible',
       days: safeToNumber(parsed.days),
       nights: safeToNumber(parsed.nights),
-      
+
       // Fixed date fields - use defaultDateRange to match schema
       defaultDateRange: processedDateRange,
-      
+
       // Multiple departures fields
       departures: processedDepartures,
-      
+
       // Recurring fields
       isRecurring: convertToBoolean(parsed.isRecurring),
       recurrencePattern: parsed.recurrencePattern || 'weekly',
       recurrenceInterval: safeToNumber(parsed.recurrenceInterval, 1),
       recurrenceEndDate: parsed.recurrenceEndDate ? new Date(parsed.recurrenceEndDate) : undefined,
-      
+
       // Pricing category - for multiple departures, collect all selectedPricingOptions from all departures
       pricingCategory: (() => {
         if (parsed.scheduleType === 'multiple' && processedDepartures.length > 0) {
@@ -415,13 +399,13 @@ export const processTourDatesData = (tourDates: any) => {
           return Array.from(allPricingOptions);
         } else {
           // For flexible and fixed dates, use the main pricingCategory
-          return Array.isArray(parsed.pricingCategory) 
-            ? parsed.pricingCategory 
+          return Array.isArray(parsed.pricingCategory)
+            ? parsed.pricingCategory
             : (parsed.pricingCategory ? [parsed.pricingCategory] : []);
         }
       })()
     };
-    
+
     console.log('🎯 Processed dates result:', result);
     return result;
   } catch (error) {
@@ -455,28 +439,28 @@ export const extractTourFields = (req: any) => {
       pricingData = pricing || {};
     }
   }
-  
+
   const isPerPerson = pricingData.pricePerPerson !== false; // Default to true if not specified
 
   // Extract nested pricing data if it exists
   const nestedPricing: any = pricingData || {};
   const finalPricingOptions = pricingOptions || nestedPricing.pricingOptions;
-  
+
   // Prioritize nested pricing discount over top-level fields
   const finalDiscountEnabled = nestedPricing.discount?.discountEnabled !== undefined ? nestedPricing.discount.discountEnabled : discountEnabled;
   const finalDiscountPrice = nestedPricing.discount?.discountPrice !== undefined ? nestedPricing.discount.discountPrice : discountPrice;
-  
+
   // Extract priceLockDate from nested pricing object or top-level
   const finalPriceLockDate = nestedPricing.priceLockDate || priceLockDate;
 
   const finalDiscountDateRange = nestedPricing.discount?.dateRange || discountDateRange;
-  
+
   const finalPricingOptionsEnabled = pricingOptionsEnabled !== undefined ? pricingOptionsEnabled : nestedPricing.pricingOptionsEnabled;
 
   const result = {
     // Basic fields
     title, code, excerpt, description, coverImage, file, tourStatus,
-    
+
     // Pricing fields (flat structure to match database schema)
     price: safeToNumber(price),
     originalPrice: safeToNumber(originalPrice),
@@ -485,7 +469,7 @@ export const extractTourFields = (req: any) => {
     minSize: safeToNumber(minSize),
     maxSize: safeToNumber(maxSize),
     pricingOptionsEnabled: finalPricingOptionsEnabled,
-    
+
     // Discount data (flat structure)
     discount: {
       discountEnabled: convertToBoolean(finalDiscountEnabled),
@@ -493,24 +477,24 @@ export const extractTourFields = (req: any) => {
       discountDateRange: finalDiscountDateRange ? (() => {
         try {
           // Handle both string and object formats
-          const parsedRange = typeof finalDiscountDateRange === 'string' 
-            ? JSON.parse(finalDiscountDateRange) 
+          const parsedRange = typeof finalDiscountDateRange === 'string'
+            ? JSON.parse(finalDiscountDateRange)
             : finalDiscountDateRange;
-          
+
           const fromDate = new Date(parsedRange.from);
           const toDate = new Date(parsedRange.to);
-          
+
           // Ensure dates are valid and to >= from
           if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
             console.error('Invalid dates in discount range');
             return undefined;
           }
-          
+
           if (toDate < fromDate) {
             console.error('End date must be after start date');
             return undefined;
           }
-          
+
           return { from: fromDate, to: toDate };
         } catch (error) {
           console.error('Error parsing discount date range:', error);
@@ -519,13 +503,13 @@ export const extractTourFields = (req: any) => {
       })() : undefined,
       percentageOrPrice: false
     },
-    
+
     // Tour dates data - map to correct field name for database schema
     tourDates: dates ? processTourDatesData(dates) : undefined,
-    
+
     // Pricing options processing
     pricingOptions: finalPricingOptions ? processPricingOptions(finalPricingOptions) : undefined,
-    
+
     // Structured data fields
     category: category ? processCategoryData(category) : undefined,
     outline,
@@ -536,7 +520,7 @@ export const extractTourFields = (req: any) => {
     faqs: faqs ? processFaqsData(faqs) : undefined,
     gallery: gallery ? processGalleryData(gallery) : undefined,
     location: location ? processLocationData(location) : undefined,
-    
+
     // Other fields
     author,
     enquiry: convertToBoolean(enquiry),
@@ -546,10 +530,10 @@ export const extractTourFields = (req: any) => {
     priceLockDate: finalPriceLockDate ? new Date(finalPriceLockDate) : undefined,
     // Only set groupSize when pricing is per group (pricePerPerson = false)
     ...(isPerPerson ? {} : { groupSize: safeToNumber(groupSize, 1) }),
-    
+
     // Any remaining fields
     ...rest
   };
-  
+
   return result;
 };

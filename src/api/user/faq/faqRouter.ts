@@ -1,30 +1,50 @@
-import express from "express";
-import {authenticate, isAdminOrSeller} from "../../../middlewares/authenticate";
-
-
+import express, { RequestHandler } from "express";
+import { authenticate, isAdminOrSeller, AuthRequest } from "../../../middlewares/authenticate";
 import { addFaqs, getUserFaqs, updateFaqs, deleteFaqs, getAllFaqs, getSingleFaqs } from "./faqController";
 import { uploadNone } from "../../../middlewares/multer";
-
+import { asyncHandler } from "../../../utils/routeWrapper";
 
 const faqsRouter = express.Router();
 
-faqsRouter.post('/', authenticate, uploadNone, isAdminOrSeller as any, addFaqs as any);
+// Add FAQ (Protected, Admin or Seller)
+faqsRouter.post(
+    '/',
+    authenticate,
+    uploadNone,
+    isAdminOrSeller as RequestHandler,
+    asyncHandler<AuthRequest>(addFaqs)
+);
 
-// Get All Categories (Public)
-faqsRouter.get('/', getAllFaqs as any);
+// Get All FAQs (Public)
+faqsRouter.get('/', asyncHandler(getAllFaqs));
 
-// Get Categories for a Specific User (Protected, Admin or Seller)
-faqsRouter.get('/user/:userId', authenticate, isAdminOrSeller as any, getUserFaqs  as any);
+// Get FAQs for a Specific User (Protected, Admin or Seller)
+faqsRouter.get(
+    '/user/:userId',
+    authenticate,
+    isAdminOrSeller as RequestHandler,
+    asyncHandler<AuthRequest>(getUserFaqs)
+);
 
-// Get a Single Category by Category ID (Public)
-faqsRouter.get('/:faqId', getSingleFaqs as any);
+// Get a Single FAQ by ID (Public)
+faqsRouter.get('/:faqId', asyncHandler(getSingleFaqs));
 
-// Update a Category (Protected, Admin or Seller)
-faqsRouter.patch('/:faqId', authenticate, uploadNone, isAdminOrSeller as any, updateFaqs as any);
+// Update a FAQ (Protected, Admin or Seller)
+faqsRouter.patch(
+    '/:faqId',
+    authenticate,
+    uploadNone,
+    isAdminOrSeller as RequestHandler,
+    asyncHandler<AuthRequest>(updateFaqs)
+);
 
-// Delete a Category (Protected, Admin or Seller)
-faqsRouter.delete('/:faqsId', authenticate, isAdminOrSeller as any, deleteFaqs as any);
-
+// Delete a FAQ (Protected, Admin or Seller)
+faqsRouter.delete(
+    '/:faqsId',
+    authenticate,
+    isAdminOrSeller as RequestHandler,
+    asyncHandler<AuthRequest>(deleteFaqs)
+);
 
 export default faqsRouter;
 

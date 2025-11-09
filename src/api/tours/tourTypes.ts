@@ -202,10 +202,7 @@ export interface Tour extends Document {
       description: string;
       date?: Date;
     }[];
-    category: {
-      categoryId: mongoose.Types.ObjectId;
-      categoryName: string;
-    }[],
+    category: mongoose.Types.ObjectId[];
     dates: {
       id: mongoose.Types.ObjectId;
       tripDuration: string;

@@ -53,6 +53,63 @@ const sellerInfoSchema = new mongoose.Schema({
       type: String,
     }
   },
+  // User-specific destination preferences
+  destination: [{
+    destinationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'GlobalDestination',
+      required: true
+    },
+    destinationName: {
+      type: String,
+      required: true
+    },
+    isActive: {
+      type: Boolean,
+      default: true
+    },
+    isApproved: {
+      type: Boolean,
+      default: false
+    },
+    approvalStatus: {
+      type: String,
+      enum: ['pending', 'approved', 'rejected'],
+      default: 'pending'
+    },
+    addedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  category: [{
+    categoryId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'GlobalCategory',
+      required: true
+    },
+    categoryName: {
+      type: String,
+      required: true
+    },
+    isActive: {
+      type: Boolean,
+      default: true
+    },
+    isApproved: {
+      type: Boolean,
+      default: false
+    },
+    approvalStatus: {
+      type: String,
+      enum: ['pending', 'approved', 'rejected'],
+      default: 'pending'
+    },
+    addedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
   businessDescription: {
     type: String,
   },

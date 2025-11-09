@@ -3,19 +3,65 @@ import TourModel from '../tourModel';
 import { Tour, PricingOption, DateRange } from '../tourTypes';
 import { PaginationParams, paginate } from '../../../utils/pagination';
 import createHttpError from 'http-errors';
+import { BaseService } from '../../../services/BaseService';
 
 /**
  * Tour Service Layer
  * Contains all business logic for tour operations
+ * Extends BaseService for common CRUD operations
  */
-export class TourService {
-  
+export class TourService extends BaseService<Tour> {
+
+  constructor() {
+    super(TourModel);
+  }
+
+  /**
+   * Build search query for tours
+   */
+  protected buildSearchQuery(searchParams: any) {
+    const query: any = { tourStatus: 'Published' };
+
+    // Keyword search across multiple fields
+    if (searchParams.keyword) {
+      query.$or = [
+        { title: { $regex: searchParams.keyword, $options: 'i' } },
+        { description: { $regex: searchParams.keyword, $options: 'i' } },
+        { outline: { $regex: searchParams.keyword, $options: 'i' } }
+      ];
+    }
+
+    // Filter by destination
+    if (searchParams.destination) {
+      query.destination = searchParams.destination;
+    }
+
+    // Price range filtering
+    if (searchParams.minPrice || searchParams.maxPrice) {
+      query.price = {};
+      if (searchParams.minPrice) query.price.$gte = searchParams.minPrice;
+      if (searchParams.maxPrice) query.price.$lte = searchParams.maxPrice;
+    }
+
+    // Rating filter
+    if (searchParams.rating) {
+      query.averageRating = { $gte: searchParams.rating };
+    }
+
+    // Category filter
+    if (searchParams.category) {
+      query['category.categoryName'] = { $regex: searchParams.category, $options: 'i' };
+    }
+
+    return query;
+  }
+
   /**
    * Get all tours with filtering and pagination
    */
   static async getAllTours(filters: any = {}, paginationParams: PaginationParams) {
     const now = new Date();
-    const baseQuery = { 
+    const baseQuery = {
       tourStatus: 'Published',
       // Filter out tours that are price locked (past their price lock date)
       $or: [
@@ -23,12 +69,12 @@ export class TourService {
         { priceLockDate: null }, // Tours with null price lock
         { priceLockDate: { $gt: now } } // Tours with future price lock date
       ],
-      ...filters 
+      ...filters
     };
-    
+
     // Use the paginate utility directly with the model and query
     const result = await paginate(TourModel, baseQuery, paginationParams);
-    
+
     // Populate the results manually
     if (result.items && result.items.length > 0) {
       const populatedItems = await TourModel.populate(result.items, [
@@ -37,7 +83,7 @@ export class TourService {
       ]);
       result.items = populatedItems;
     }
-    
+
     return result;
   }
 
@@ -54,7 +100,7 @@ export class TourService {
       .populate('author', 'name email roles')
       .populate('reviews.user', 'name email roles')
       .lean();
-    
+
     if (!tour) {
       throw createHttpError(404, 'Tour not found');
     }
@@ -71,7 +117,7 @@ export class TourService {
         ...tourData,
         author: authorId
       });
-      
+
       const newTour = new TourModel({
         ...tourData,
         author: authorId,
@@ -133,7 +179,7 @@ export class TourService {
     }
 
     const deletedTour = await TourModel.findOneAndDelete(query);
-    
+
     if (!deletedTour) {
       throw createHttpError(404, 'Tour not found or unauthorized');
     }
@@ -153,7 +199,7 @@ export class TourService {
     category?: string;
   }, paginationParams: PaginationParams) {
     const query: any = { tourStatus: 'Published' };
-    
+
     // Keyword search across multiple fields
     if (searchParams.keyword) {
       query.$or = [
@@ -162,35 +208,35 @@ export class TourService {
         { outline: { $regex: searchParams.keyword, $options: 'i' } }
       ];
     }
-    
+
     // Filter by destination
     if (searchParams.destination) {
       query.destination = searchParams.destination;
     }
-    
+
     // Price range filtering
     if (searchParams.minPrice || searchParams.maxPrice) {
       query.price = {};
       if (searchParams.minPrice) query.price.$gte = searchParams.minPrice;
       if (searchParams.maxPrice) query.price.$lte = searchParams.maxPrice;
     }
-    
+
     // Rating filter
     if (searchParams.rating) {
       query.averageRating = { $gte: searchParams.rating };
     }
-    
+
     // Category filter
     if (searchParams.category) {
       query['category.categoryName'] = { $regex: searchParams.category, $options: 'i' };
     }
-    
+
     const tourQuery = TourModel.find(query)
       .populate("author", "name roles")
       // Don't try to populate category.categoryId as it doesn't exist in the schema
       // Instead, we'll use the category data as is
       .sort({ createdAt: -1 });
-    
+
     return paginate(tourQuery, paginationParams);
   }
 
@@ -236,10 +282,10 @@ export class TourService {
    */
   static async getUserTours(userId: string, isAdmin: boolean = false, paginationParams: PaginationParams) {
     const query = isAdmin ? {} : { author: userId };
-    
+
     // Use the paginate utility directly with the model and query
     const result = await paginate(TourModel, query, paginationParams);
-    
+
     // Populate the results manually
     if (result.items && result.items.length > 0) {
       const populatedItems = await TourModel.populate(result.items, {
@@ -248,7 +294,7 @@ export class TourService {
       });
       result.items = populatedItems;
     }
-    
+
     return result;
   }
 
@@ -271,7 +317,7 @@ export class TourService {
     }
 
     const result = await TourModel.findByIdAndUpdate(
-      tourId, 
+      tourId,
       { $inc: { views: 1 } },
       { new: true }
     );
@@ -292,7 +338,7 @@ export class TourService {
     }
 
     const result = await TourModel.findByIdAndUpdate(
-      tourId, 
+      tourId,
       { $inc: { bookingCount: 1 } },
       { new: true }
     );

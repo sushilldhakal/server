@@ -21,6 +21,22 @@ export interface SellerInfo {
     accountHolderName: string;
     branchCode: string;
   };
+  destination?: {
+    destinationId: string;
+    destinationName: string;
+    isActive: boolean;
+    isApproved: boolean;
+    approvalStatus: string;
+    addedAt?: Date;
+  }[];
+  category?: {
+    categoryId: string;
+    categoryName: string;
+    isActive: boolean;
+    isApproved: boolean;
+    approvalStatus: string;
+    addedAt?: Date;
+  }[];
   businessDescription: string;
   sellerType: string;
   isApproved: boolean;

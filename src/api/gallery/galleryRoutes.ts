@@ -1,17 +1,44 @@
 
-import express, { NextFunction } from "express";
+import express, { RequestHandler } from "express";
 import { addMedia, deleteMedia, getMedia, getSingleMedia, updateMedia } from "./galleryController";
-import {authenticate, isAdminOrSeller} from "../../middlewares/authenticate";
+import { authenticate, isAdminOrSeller, AuthRequest } from "../../middlewares/authenticate";
 import { uploadMultiple, uploadNone } from "../../middlewares/multer";
+import { asyncHandler } from "../../utils/routeWrapper";
+
 const galleryRoutes = express.Router();
 
+// Get all media (Protected, Admin or Seller)
+galleryRoutes.get(
+    '/media',
+    authenticate,
+    isAdminOrSeller as RequestHandler,
+    asyncHandler<AuthRequest>(getMedia)
+);
 
+// Get single media by public ID (Public)
+galleryRoutes.get('/:publicId', asyncHandler(getSingleMedia));
 
-galleryRoutes.get('/media', authenticate as any, isAdminOrSeller as any, getMedia as any);
-galleryRoutes.get('/:publicId', getSingleMedia as any);
-galleryRoutes.post('/:userId/', authenticate as any, uploadMultiple, addMedia as any);
-galleryRoutes.patch('/:userId/:imageId', authenticate as any, uploadNone , updateMedia as any);
-galleryRoutes.delete('/:userId', authenticate as any, deleteMedia as any);
+// Add media (Protected)
+galleryRoutes.post(
+    '/:userId/',
+    authenticate,
+    uploadMultiple,
+    asyncHandler<AuthRequest>(addMedia)
+);
 
+// Update media (Protected)
+galleryRoutes.patch(
+    '/:userId/:imageId',
+    authenticate,
+    uploadNone,
+    asyncHandler<AuthRequest>(updateMedia)
+);
+
+// Delete media (Protected)
+galleryRoutes.delete(
+    '/:userId',
+    authenticate,
+    asyncHandler<AuthRequest>(deleteMedia)
+);
 
 export default galleryRoutes;

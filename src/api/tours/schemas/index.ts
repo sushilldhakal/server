@@ -1,5 +1,4 @@
 // Export all schemas for easy importing
-export { default as categorySchema } from './categorySchema';
 export { default as dateRangeSchema } from './dateRangeSchema';
 export { default as departureSchema } from './departureSchema';
 export { default as discountSchema } from './discountSchema';

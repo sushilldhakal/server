@@ -1,29 +1,49 @@
-import express from "express";
-import {authenticate, isAdminOrSeller} from "../../../middlewares/authenticate";
-
-
-import { addFacts,getAllFacts, getUserFacts, updateFacts, deleteFacts, getSingleFacts } from "./factsController";
+import express, { RequestHandler } from "express";
+import { authenticate, isAdminOrSeller, AuthRequest } from "../../../middlewares/authenticate";
+import { addFacts, getAllFacts, getUserFacts, updateFacts, deleteFacts, getSingleFacts } from "./factsController";
 import { uploadNone } from "../../../middlewares/multer";
-
+import { asyncHandler } from "../../../utils/routeWrapper";
 
 const factsRouter = express.Router();
 
-// Add Category (Protected, Admin or Seller)
-factsRouter.post('/', authenticate, uploadNone, isAdminOrSeller as any, addFacts as any);
+// Add Facts (Protected, Admin or Seller)
+factsRouter.post(
+    '/',
+    authenticate,
+    uploadNone,
+    isAdminOrSeller as RequestHandler,
+    asyncHandler<AuthRequest>(addFacts)
+);
 
-// Get All Categories (Public)
-factsRouter.get('/', getAllFacts as any);
+// Get All Facts (Public)
+factsRouter.get('/', asyncHandler(getAllFacts));
 
-// Get Categories for a Specific User (Protected, Admin or Seller)
-factsRouter.get('/user/:userId', authenticate, isAdminOrSeller as any, getUserFacts  as any);
+// Get Facts for a Specific User (Protected, Admin or Seller)
+factsRouter.get(
+    '/user/:userId',
+    authenticate,
+    isAdminOrSeller as RequestHandler,
+    asyncHandler<AuthRequest>(getUserFacts)
+);
 
-// Get a Single Category by Category ID (Public)
-factsRouter.get('/:factsId', getSingleFacts as any);
+// Get a Single Fact by ID (Public)
+factsRouter.get('/:factsId', asyncHandler(getSingleFacts));
 
-// Update a Category (Protected, Admin or Seller)
-factsRouter.patch('/:factId', authenticate, uploadNone, isAdminOrSeller as any, updateFacts as any);
+// Update a Fact (Protected, Admin or Seller)
+factsRouter.patch(
+    '/:factId',
+    authenticate,
+    uploadNone,
+    isAdminOrSeller as RequestHandler,
+    asyncHandler<AuthRequest>(updateFacts)
+);
 
-// Delete a Category (Protected, Admin or Seller)
-factsRouter.delete('/:factsId', authenticate, isAdminOrSeller as any, deleteFacts as any);
+// Delete a Fact (Protected, Admin or Seller)
+factsRouter.delete(
+    '/:factsId',
+    authenticate,
+    isAdminOrSeller as RequestHandler,
+    asyncHandler<AuthRequest>(deleteFacts)
+);
 
 export default factsRouter;
