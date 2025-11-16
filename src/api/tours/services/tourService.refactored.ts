@@ -110,6 +110,11 @@ export class TourService extends BaseService<Tour> {
             .findById(tourId)
             .populate('author', 'name email roles')
             .populate('reviews.user', 'name email roles')
+            .populate({
+                path: 'category',
+                select: 'name description',
+                options: { strictPopulate: false }
+            })
             .lean();
 
         if (!tour) {

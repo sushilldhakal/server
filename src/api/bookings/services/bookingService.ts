@@ -36,6 +36,13 @@ export class BookingService extends BaseService<Booking> {
                 throw createHttpError(400, 'Tour and departure date are required');
             }
 
+            // Generate booking reference if not provided
+            if (!bookingData.bookingReference) {
+                const timestamp = Date.now().toString(36).toUpperCase();
+                const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+                bookingData.bookingReference = `BK-${timestamp}-${random}`;
+            }
+
             // Create booking
             const booking = await this.create(bookingData);
 

@@ -171,7 +171,14 @@ export const searchTours = asyncHandler(async (req: Request, res: Response) => {
 export const getLatestTours = asyncHandler(async (req: Request, res: Response) => {
   const limit = parseInt(req.query.limit as string) || 10;
   const tours = await TourService.getToursBy('latest', limit);
-  sendSuccess(res, { tours }, RESPONSE_MESSAGES.TOURS_RETRIEVED);
+  
+  // Transform _id to id for frontend compatibility
+  const transformedTours = tours.map((tour: any) => ({
+    ...tour,
+    id: tour._id.toString()
+  }));
+  
+  sendSuccess(res, { tours: transformedTours }, RESPONSE_MESSAGES.TOURS_RETRIEVED);
 });
 
 /**

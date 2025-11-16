@@ -77,11 +77,20 @@ export class TourService extends BaseService<Tour> {
 
     // Populate the results manually
     if (result.items && result.items.length > 0) {
-      const populatedItems = await TourModel.populate(result.items, [
-        { path: 'author', select: 'name email roles' },
-        { path: 'category.categoryId', select: 'name' }
-      ]);
-      result.items = populatedItems;
+      try {
+        const populatedItems = await TourModel.populate(result.items, [
+          { path: 'author', select: 'name email roles' },
+          { 
+            path: 'category', 
+            select: 'name description',
+            options: { strictPopulate: false }
+          }
+        ]);
+        result.items = populatedItems;
+      } catch (error) {
+        console.error('Error populating categories in getAllTours:', error);
+        // Continue without category population if it fails
+      }
     }
 
     return result;
@@ -99,6 +108,11 @@ export class TourService extends BaseService<Tour> {
       .findById(tourId)
       .populate('author', 'name email roles')
       .populate('reviews.user', 'name email roles')
+      .populate({
+        path: 'category',
+        select: 'name description',
+        options: { strictPopulate: false }
+      })
       .lean();
 
     if (!tour) {
@@ -233,8 +247,11 @@ export class TourService extends BaseService<Tour> {
 
     const tourQuery = TourModel.find(query)
       .populate("author", "name roles")
-      // Don't try to populate category.categoryId as it doesn't exist in the schema
-      // Instead, we'll use the category data as is
+      .populate({
+        path: "category",
+        select: "name description",
+        options: { strictPopulate: false }
+      })
       .sort({ createdAt: -1 });
 
     return paginate(tourQuery, paginationParams);
@@ -268,13 +285,23 @@ export class TourService extends BaseService<Tour> {
         break;
     }
 
-    return TourModel.find(query)
+    const tours = await TourModel.find(query)
       .sort(sort)
       .limit(limit)
       .populate("author", "name roles")
-      // Don't try to populate category.categoryId as it doesn't exist in the schema
-      // Instead, we'll use the category data as is
       .lean();
+    
+    // Populate category with error handling
+    try {
+      return await TourModel.populate(tours, {
+        path: 'category',
+        select: 'name description',
+        options: { strictPopulate: false }
+      });
+    } catch (error) {
+      console.error('Error populating categories in getToursBy:', error);
+      return tours; // Return tours without populated categories if populate fails
+    }
   }
 
   /**
@@ -288,11 +315,20 @@ export class TourService extends BaseService<Tour> {
 
     // Populate the results manually
     if (result.items && result.items.length > 0) {
-      const populatedItems = await TourModel.populate(result.items, {
-        path: 'author',
-        select: 'name email roles'
-      });
-      result.items = populatedItems;
+      try {
+        const populatedItems = await TourModel.populate(result.items, [
+          { path: 'author', select: 'name email roles' },
+          { 
+            path: 'category', 
+            select: 'name description',
+            options: { strictPopulate: false }
+          }
+        ]);
+        result.items = populatedItems;
+      } catch (error) {
+        console.error('Error populating categories in getUserTours:', error);
+        // Continue without category population if it fails
+      }
     }
 
     return result;
