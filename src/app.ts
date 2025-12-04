@@ -27,13 +27,20 @@ const app = express();
 app.use(
   cors({
     origin: (origin, callback) => {
+      // Split frontendDomain by comma to support multiple domains
+      const allowedOrigins = [
+        ...(config.frontendDomain?.split(',').map(d => d.trim()) || []),
+        config.homePage
+      ].filter(Boolean);
+
       // Check if the origin is in the allowed list or if it's not provided (e.g., for non-browser requests)
-      if (config.frontendDomain === origin || config.homePage === origin || !origin) {
+      if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
         callback(new Error('Not allowed by CORS'));
       }
-    }
+    },
+    credentials: true
   })
 );
 

@@ -1,6 +1,7 @@
 import { AuthRequest } from './../../../middlewares/authenticate';
 import Facts from './factsModel';
 import { Response, Request, NextFunction } from 'express';
+import TourModel from '../../tours/tourModel';
 
 
 
@@ -14,8 +15,8 @@ export const getUserFacts = async (req: AuthRequest, res: Response, next: NextFu
         } else {
             facts = await Facts.find({ user: userId });  // Seller can view only their facts
         }
-         // Optional: Transform facts if needed
-         const transformedFacts = facts.map(fact => ({
+        // Optional: Transform facts if needed
+        const transformedFacts = facts.map(fact => ({
             id: fact._id,
             name: fact.name,
             field_type: fact.field_type,
@@ -32,8 +33,8 @@ export const getUserFacts = async (req: AuthRequest, res: Response, next: NextFu
 export const getAllFacts = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
         let facts;
-            facts = await Facts.find();  // Admin can view all facts
-        res.status(200).json({facts});
+        facts = await Facts.find();  // Admin can view all facts
+        res.status(200).json({ facts });
     } catch (error) {
         res.status(500).json({ message: 'Failed to fetch facts' });
     }
@@ -43,8 +44,8 @@ export const getSingleFacts = async (req: AuthRequest, res: Response, next: Next
     const { factsId } = req.params;
     try {
         let facts;
-            facts = await Facts.findById(factsId);  // Admin can view all facts
-            res.status(200).json({facts});
+        facts = await Facts.findById(factsId);  // Admin can view all facts
+        res.status(200).json({ facts });
     } catch (error) {
         res.status(500).json({ message: 'Failed to fetch facts' });
     }
@@ -58,7 +59,7 @@ export const addFacts = async (req: AuthRequest, res: Response, next: NextFuncti
             value,
             icon, } = req.body;
 
-            console.log("req.body", req.body)
+        console.log("req.body", req.body)
         const newFacts = new Facts({
             name,
             field_type,
@@ -80,7 +81,7 @@ export const updateFacts = async (req: AuthRequest, res: Response, next: NextFun
         const userId = req.userId;  // Assuming user ID is available in the request
         const { factId } = req.params;
         const { name, field_type, value, icon } = req.body;
-        console.log("req.body", req.body)
+        console.log("req.body", req.body, factId)
         const facts = await Facts.findById(factId);
         if (!facts) {
             return res.status(404).json({ message: 'Fact not found' });
@@ -90,14 +91,44 @@ export const updateFacts = async (req: AuthRequest, res: Response, next: NextFun
             return res.status(403).json({ message: 'Not authorized to update this Fact' });
         }
 
+        // Update the master fact
         facts.name = name;
         facts.field_type = field_type;
         facts.value = value;
         facts.icon = icon;
         await facts.save();
 
-        res.status(200).json(facts);
+        // Cascade update to all tours that use this fact
+        // Update tours where facts array contains an item with factId matching this fact's _id
+        console.log(`🔍 Looking for tours with factId: ${factId}`);
+
+        const updateResult = await TourModel.updateMany(
+            { 'facts.factId': factId },
+            {
+                $set: {
+                    'facts.$[elem].title': name,
+                    'facts.$[elem].icon': icon,
+                    'facts.$[elem].field_type': field_type,
+                    'updatedAt': new Date()
+                }
+            },
+            {
+                arrayFilters: [{ 'elem.factId': factId }]
+            }
+        );
+
+        console.log(`✅ CASCADE UPDATE: Updated ${updateResult.modifiedCount} tours with fact changes`);
+        console.log(`   - Fact ID: ${factId}`);
+        console.log(`   - New name: "${name}"`);
+        console.log(`   - Tours matched: ${updateResult.matchedCount}`);
+        console.log(`   - Tours modified: ${updateResult.modifiedCount}`);
+
+        res.status(200).json({
+            facts,
+            toursUpdated: updateResult.modifiedCount
+        });
     } catch (error) {
+        console.error('Error updating fact:', error);
         res.status(500).json({ message: 'Failed to update Fact' });
     }
 };
@@ -119,6 +150,56 @@ export const deleteFacts = async (req: AuthRequest, res: Response, next: NextFun
         await Facts.findByIdAndDelete(factsId);
         res.status(204).send();
     } catch (error) {
+        res.status(500).json({ message: 'Failed to delete facts' });
+    }
+};
+
+export const deleteMultipleFacts = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+        const userId = req.userId;
+        const userRole = req.roles;
+        const { factIds } = req.body; // Expecting an array of fact IDs
+
+        if (!Array.isArray(factIds) || factIds.length === 0) {
+            return res.status(400).json({ message: 'Invalid or empty factIds array' });
+        }
+
+        console.log(`🗑️  Bulk delete request for ${factIds.length} facts`);
+
+        // Find all facts to verify ownership
+        const factsToDelete = await Facts.find({ _id: { $in: factIds } });
+
+        if (factsToDelete.length === 0) {
+            return res.status(404).json({ message: 'No facts found with provided IDs' });
+        }
+
+        // Check authorization for each fact
+        const unauthorizedFacts = factsToDelete.filter(
+            fact => fact.user.toString() !== userId && userRole !== 'admin'
+        );
+
+        if (unauthorizedFacts.length > 0) {
+            return res.status(403).json({
+                message: 'Not authorized to delete some facts',
+                unauthorizedCount: unauthorizedFacts.length
+            });
+        }
+
+        // Delete all authorized facts
+        const deleteResult = await Facts.deleteMany({ _id: { $in: factIds } });
+
+        console.log(`✅ Successfully deleted ${deleteResult.deletedCount} facts`);
+        console.log(`   - Requested: ${factIds.length}`);
+        console.log(`   - Found: ${factsToDelete.length}`);
+        console.log(`   - Deleted: ${deleteResult.deletedCount}`);
+
+        res.status(200).json({
+            message: 'Facts deleted successfully',
+            deletedCount: deleteResult.deletedCount,
+            requestedCount: factIds.length
+        });
+    } catch (error) {
+        console.error('Error deleting multiple facts:', error);
         res.status(500).json({ message: 'Failed to delete facts' });
     }
 };

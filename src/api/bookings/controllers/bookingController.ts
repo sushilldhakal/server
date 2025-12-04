@@ -118,7 +118,7 @@ export const getBookingByReference = async (req: Request, res: Response, next: N
 export const getUserBookings = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
         const userId = req.params.userId || req.userId;
-        const { page = 1, limit = 10 } = req.query;
+        const { page = 1, limit = 10, status } = req.query;
 
         if (!userId) {
             throw createHttpError(401, 'User not authenticated');
@@ -129,7 +129,7 @@ export const getUserBookings = async (req: AuthRequest, res: Response, next: Nex
             limit: Number(limit),
             sortBy: 'createdAt',
             sortOrder: 'desc'
-        });
+        }, status as string);
 
         sendPaginatedResponse(res, result.items, {
             currentPage: result.page,
@@ -237,6 +237,30 @@ export const getBookingStats = async (req: Request, res: Response, next: NextFun
         const stats = await BookingService.getBookingStats();
 
         sendSuccess(res, stats, 'Booking statistics retrieved successfully');
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Download booking voucher
+ */
+export const downloadVoucher = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+        const { bookingId } = req.params;
+
+        // Get booking to verify ownership
+        const booking = await BookingService.getBookingById(bookingId);
+
+        // Verify user has access to this booking
+        if (req.userId && booking.user && booking.user.toString() !== req.userId) {
+            throw createHttpError(403, 'You do not have access to this booking');
+        }
+
+        // Generate voucher data
+        const voucherData = await BookingService.generateVoucher(bookingId);
+
+        sendSuccess(res, voucherData, 'Voucher data retrieved successfully');
     } catch (error) {
         next(error);
     }

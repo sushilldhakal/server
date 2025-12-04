@@ -15,8 +15,10 @@ import {
   getUserTours,
   getUserToursTitle,
   incrementTourViews,
-  incrementTourBookings
+  incrementTourBookings,
+  checkTourAvailability
 } from './controllers/tourController';
+import { migrateTourFacts } from './controllers/migrationController';
 import {
   validateObjectId,
   validateTourCreation,
@@ -28,7 +30,7 @@ const router = express.Router();
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
-const upload = multer({ 
+const upload = multer({
   storage,
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB limit
@@ -47,40 +49,61 @@ router.get('/by-rating', getToursByRating);
 router.get('/discounted', getDiscountedTours);
 router.get('/special-offers', getSpecialOfferTours);
 
+// Single tour routes (public) - must come before protected routes
+router.get('/single/:tourId', validateObjectId(), getTour);
+router.get('/:tourId/availability', validateObjectId(), checkTourAvailability);
+
+// Update single tour route (requires authentication)
+router.patch(
+  '/single/:tourId',
+  authenticate,
+  validateObjectId(),
+  upload.fields([
+    { name: 'coverImage', maxCount: 1 },
+    { name: 'file', maxCount: 10 }
+  ]),
+  updateTour
+);
+
 // Analytics routes (public)
 router.patch('/:tourId/views/increment', validateObjectId(), incrementTourViews);
 router.patch('/:tourId/bookings/increment', validateObjectId(), incrementTourBookings);
 
-// Protected routes (authentication required)
+// Legacy update route (requires authentication, kept for backward compatibility)
+router.patch(
+  '/:tourId',
+  authenticate,
+  validateObjectId(),
+  upload.fields([
+    { name: 'coverImage', maxCount: 1 },
+    { name: 'file', maxCount: 10 }
+  ]),
+  updateTour
+);
+
+// Protected routes (authentication required) - ALL routes below this line require auth
 router.use(authenticate);
+
+// Migration endpoint - add factId to existing tours
+router.post('/migrate/facts', migrateTourFacts);
 
 // User tour management (with userId parameter for frontend compatibility)
 router.get('/user/:userId', validatePagination, getUserTours);
 router.get('/user/:userId/titles', getUserToursTitle);
 
 // CRUD operations with validation
-router.post('/', 
+router.post('/',
   upload.fields([
     { name: 'coverImage', maxCount: 1 },
     { name: 'file', maxCount: 10 }
-  ]), 
-  validateTourCreation, 
+  ]),
+  validateTourCreation,
   createTour
 );
 
-// This needs to come before the GET /:tourId route
-router.patch('/:tourId', 
-  validateObjectId(),
-  upload.fields([
-    { name: 'coverImage', maxCount: 1 },
-    { name: 'file', maxCount: 10 }
-  ]), 
-  updateTour
-);
 
-// This needs to come after all other specific routes
-router.get('/:tourId', validateObjectId(), getTour);
 
+// Delete route (protected)
 router.delete('/:tourId', validateObjectId(), deleteTour);
 
 export default router;

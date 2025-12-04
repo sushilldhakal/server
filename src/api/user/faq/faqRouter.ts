@@ -1,6 +1,6 @@
 import express, { RequestHandler } from "express";
 import { authenticate, isAdminOrSeller, AuthRequest } from "../../../middlewares/authenticate";
-import { addFaqs, getUserFaqs, updateFaqs, deleteFaqs, getAllFaqs, getSingleFaqs } from "./faqController";
+import { addFaqs, getUserFaqs, updateFaqs, deleteFaqs, getAllFaqs, getSingleFaqs, deleteMultipleFaqs } from "./faqController";
 import { uploadNone } from "../../../middlewares/multer";
 import { asyncHandler } from "../../../utils/routeWrapper";
 
@@ -44,6 +44,14 @@ faqsRouter.delete(
     authenticate,
     isAdminOrSeller as RequestHandler,
     asyncHandler<AuthRequest>(deleteFaqs)
+);
+
+// Delete Multiple FAQs (Protected, Admin or Seller)
+faqsRouter.post(
+    '/bulk-delete',
+    authenticate,
+    isAdminOrSeller as RequestHandler,
+    asyncHandler<AuthRequest>(deleteMultipleFaqs)
 );
 
 export default faqsRouter;

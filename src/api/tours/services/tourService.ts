@@ -4,6 +4,7 @@ import { Tour, PricingOption, DateRange } from '../tourTypes';
 import { PaginationParams, paginate } from '../../../utils/pagination';
 import createHttpError from 'http-errors';
 import { BaseService } from '../../../services/BaseService';
+import FactsModel from '../../user/facts/factsModel';
 
 /**
  * Tour Service Layer
@@ -80,8 +81,8 @@ export class TourService extends BaseService<Tour> {
       try {
         const populatedItems = await TourModel.populate(result.items, [
           { path: 'author', select: 'name email roles' },
-          { 
-            path: 'category', 
+          {
+            path: 'category',
             select: 'name description',
             options: { strictPopulate: false }
           }
@@ -117,6 +118,37 @@ export class TourService extends BaseService<Tour> {
 
     if (!tour) {
       throw createHttpError(404, 'Tour not found');
+    }
+
+    // Enrich facts with current data from the master Facts collection
+    if (tour.facts && Array.isArray(tour.facts) && tour.facts.length > 0) {
+      const enrichedFacts = await Promise.all(
+        tour.facts.map(async (tourFact: any) => {
+          // If the fact has a factId, look up the current fact data
+          if (tourFact.factId) {
+            try {
+              const masterFact = await FactsModel.findById(tourFact.factId).lean();
+              if (masterFact) {
+                // Merge master fact data with tour fact data
+                // Keep the tour's value, but update name, icon, and field_type from master
+                return {
+                  ...tourFact,
+                  title: masterFact.name, // Update title with current name
+                  name: masterFact.name,  // Also set name for consistency
+                  icon: masterFact.icon,
+                  field_type: masterFact.field_type,
+                  _id: masterFact._id
+                };
+              }
+            } catch (error) {
+              console.error(`Error fetching master fact ${tourFact.factId}:`, error);
+            }
+          }
+          // If no factId or lookup failed, return the tour fact as-is
+          return tourFact;
+        })
+      );
+      tour.facts = enrichedFacts;
     }
 
     return tour;
@@ -290,7 +322,7 @@ export class TourService extends BaseService<Tour> {
       .limit(limit)
       .populate("author", "name roles")
       .lean();
-    
+
     // Populate category with error handling
     try {
       return await TourModel.populate(tours, {
@@ -318,8 +350,8 @@ export class TourService extends BaseService<Tour> {
       try {
         const populatedItems = await TourModel.populate(result.items, [
           { path: 'author', select: 'name email roles' },
-          { 
-            path: 'category', 
+          {
+            path: 'category',
             select: 'name description',
             options: { strictPopulate: false }
           }
@@ -340,7 +372,8 @@ export class TourService extends BaseService<Tour> {
   static async getUserTourTitles(userId: string) {
     return TourModel
       .find({ author: userId })
-      .select('title')
+      .select('_id title code')
+      .sort({ createdAt: -1 })
       .lean();
   }
 

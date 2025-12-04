@@ -7,6 +7,15 @@ export interface BookingGuest {
     country?: string;
 }
 
+export interface TravelerInfo {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    dateOfBirth: Date;
+    passportNumber?: string;
+}
+
 export interface BookingParticipants {
     adults: number;
     children: number;
@@ -38,7 +47,9 @@ export interface Booking extends Document {
     // Booking details
     departureDate: Date;
     participants: BookingParticipants;
+    travelers: TravelerInfo[];
     pricing: BookingPricing;
+    pricingOptionId?: string;
 
     // Contact information
     contactName: string;
@@ -56,6 +67,11 @@ export interface Booking extends Document {
     paymentMethod?: string;
     transactionId?: string;
     paidAmount: number;
+    paymentDetails?: {
+        method: string;
+        transactionId: string;
+        paidAt: Date;
+    };
 
     // Timestamps
     bookingDate: Date;

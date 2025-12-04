@@ -234,6 +234,7 @@ export const processFactsData = (facts: any) => {
       }
 
       return {
+        factId: fact.factId || fact._id,  // Preserve factId for cascade updates!
         title: fact.title || '',
         field_type: fact.field_type || 'Plain Text',
         value: factValue,
@@ -258,6 +259,7 @@ export const processFaqsData = (faqs: any) => {
     }
 
     return parsed.map((faq: any) => ({
+      faqId: faq.faqId || faq._id,  // Preserve faqId for cascade updates!
       question: faq.question || '',
       answer: faq.answer || ''
     }));

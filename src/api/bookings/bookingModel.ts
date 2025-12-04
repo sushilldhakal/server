@@ -58,6 +58,36 @@ const bookingSchema = new Schema<Booking>(
                 min: 0,
             },
         },
+        travelers: [
+            {
+                firstName: {
+                    type: String,
+                    required: true,
+                },
+                lastName: {
+                    type: String,
+                    required: true,
+                },
+                email: {
+                    type: String,
+                    required: true,
+                },
+                phone: {
+                    type: String,
+                    required: true,
+                },
+                dateOfBirth: {
+                    type: Date,
+                    required: true,
+                },
+                passportNumber: {
+                    type: String,
+                },
+            },
+        ],
+        pricingOptionId: {
+            type: String,
+        },
         pricing: {
             basePrice: {
                 type: Number,
@@ -120,6 +150,11 @@ const bookingSchema = new Schema<Booking>(
         paidAmount: {
             type: Number,
             default: 0,
+        },
+        paymentDetails: {
+            method: String,
+            transactionId: String,
+            paidAt: Date,
         },
 
         // Timestamps

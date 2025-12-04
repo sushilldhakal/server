@@ -11,7 +11,8 @@ import {
     updateBookingStatus,
     updatePaymentStatus,
     cancelBooking,
-    getBookingStats
+    getBookingStats,
+    downloadVoucher
 } from './controllers/bookingController';
 
 const bookingRouter = express.Router();
@@ -66,6 +67,12 @@ bookingRouter.post(
     '/:bookingId/cancel',
     authenticate,
     asyncHandler<AuthRequest>(cancelBooking)
+);
+
+bookingRouter.get(
+    '/:bookingId/voucher',
+    authenticate,
+    asyncHandler<AuthRequest>(downloadVoucher)
 );
 
 export default bookingRouter;

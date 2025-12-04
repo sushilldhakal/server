@@ -38,28 +38,28 @@ export const getAllTours = asyncHandler(async (req: Request, res: Response) => {
 export const getTour = asyncHandler(async (req: Request, res: Response) => {
   const { tourId } = req.params;
   const tour = await TourService.getTourById(tourId);
-  
+
   // Process facts for proper display
   if (tour.facts) {
     tour.facts = tour.facts.map((fact: any) => {
       let factValue = fact.value;
-      
+
       // Handle nested arrays and objects for display
       if (Array.isArray(factValue) && factValue.length > 0) {
         if (typeof factValue[0] === 'object' && factValue[0].value) {
           factValue = factValue.map((item: any) => item.value);
         }
       }
-      
+
       return { ...fact, value: factValue };
     });
   }
-  
+
   const breadcrumbs = [{
     label: tour.title,
     url: `/tours/${tour._id}`
   }];
-  
+
   sendSuccess(res, { tour, breadcrumbs }, RESPONSE_MESSAGES.TOUR_RETRIEVED);
 });
 
@@ -69,22 +69,22 @@ export const getTour = asyncHandler(async (req: Request, res: Response) => {
 export const createTour = asyncHandler(async (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const userId = authReq.user?._id;
-  
+
   if (!userId) {
     return sendError(res, RESPONSE_MESSAGES.UNAUTHORIZED, 401);
   }
-  
+
   // Extract and process tour data
   const tourData = extractTourFields(req);
-  
+
   // Generate unique code if not provided
   if (!tourData.code) {
     tourData.code = await generateUniqueCode();
   }
-  
+
   // Set author
   tourData.author = userId;
-  
+
   const newTour = await TourService.createTour(tourData, userId);
   sendSuccess(res, newTour, RESPONSE_MESSAGES.TOUR_CREATED, 201);
 });
@@ -97,11 +97,11 @@ export const updateTour = asyncHandler(async (req: Request, res: Response) => {
   const userId = authReq.user?._id;
   const userRoles = authReq.roles;
   const { tourId } = req.params;
-  
+
   if (!userId) {
     return sendError(res, RESPONSE_MESSAGES.UNAUTHORIZED, 401);
   }
-  
+
   // Extract and process update data
   const updateData = extractTourFields(req);
   // Remove undefined fields to avoid overwriting existing data
@@ -110,12 +110,12 @@ export const updateTour = asyncHandler(async (req: Request, res: Response) => {
       delete updateData[key];
     }
   });
-  
+
   // Only admins can update any tour, others can only update their own
   const authorId = userRoles === 'admin' ? undefined : userId;
-  
+
   const updatedTour = await TourService.updateTour(tourId, updateData, authorId);
-  
+
   sendSuccess(res, updatedTour, RESPONSE_MESSAGES.TOUR_UPDATED);
 });
 
@@ -127,14 +127,14 @@ export const deleteTour = asyncHandler(async (req: Request, res: Response) => {
   const userId = authReq.user?._id;
   const userRoles = authReq.roles;
   const { tourId } = req.params;
-  
+
   if (!userId) {
     return sendError(res, RESPONSE_MESSAGES.UNAUTHORIZED, 401);
   }
-  
+
   // Only admins can delete any tour, others can only delete their own
   const authorId = userRoles === 'admin' ? undefined : userId;
-  
+
   await TourService.deleteTour(tourId, authorId);
   sendSuccess(res, null, RESPONSE_MESSAGES.TOUR_DELETED);
 });
@@ -146,7 +146,7 @@ export const searchTours = asyncHandler(async (req: Request, res: Response) => {
   const { keyword, destination, minPrice, maxPrice, rating, category } = req.query;
   const page = parseInt(req.query.page as string) || 1;
   const limit = parseInt(req.query.limit as string) || 10;
-  
+
   const searchParams = {
     keyword: keyword as string,
     destination: destination as string,
@@ -155,7 +155,7 @@ export const searchTours = asyncHandler(async (req: Request, res: Response) => {
     rating: rating ? parseFloat(rating as string) : undefined,
     category: category as string
   };
-  
+
   const result = await TourService.searchTours(searchParams, { page, limit });
   return sendPaginatedResponse(res, result.items, {
     currentPage: result.page,
@@ -171,13 +171,13 @@ export const searchTours = asyncHandler(async (req: Request, res: Response) => {
 export const getLatestTours = asyncHandler(async (req: Request, res: Response) => {
   const limit = parseInt(req.query.limit as string) || 10;
   const tours = await TourService.getToursBy('latest', limit);
-  
+
   // Transform _id to id for frontend compatibility
   const transformedTours = tours.map((tour: any) => ({
     ...tour,
     id: tour._id.toString()
   }));
-  
+
   sendSuccess(res, { tours: transformedTours }, RESPONSE_MESSAGES.TOURS_RETRIEVED);
 });
 
@@ -219,10 +219,10 @@ export const getUserTours = asyncHandler(async (req: Request, res: Response) => 
   if (!isAdmin && authReq.userId !== userId) {
     return sendError(res, 'Access denied: Cannot access other user\'s tours', 403);
   }
-  
+
   const page = parseInt(req.query.page as string) || 1;
   const limit = parseInt(req.query.limit as string) || 10;
-  
+
   const result = await TourService.getUserTours(userId, isAdmin, { page, limit });
   return sendPaginatedResponse(res, result.items, {
     currentPage: result.page,
@@ -238,13 +238,13 @@ export const getUserTours = asyncHandler(async (req: Request, res: Response) => 
 export const getUserToursTitle = asyncHandler(async (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { userId } = req.params; // Use userId from route parameter
-  
+
   // Security check: users can only access their own tours unless they're admin
   const isAdmin = authReq.roles === 'admin';
   if (!isAdmin && authReq.userId !== userId) {
     return sendError(res, 'Access denied: Cannot access other user\'s tours', 403);
   }
-  
+
   const tours = await TourService.getUserTourTitles(userId);
   sendSuccess(res, tours, RESPONSE_MESSAGES.TOURS_RETRIEVED);
 });
@@ -255,7 +255,7 @@ export const getUserToursTitle = asyncHandler(async (req: Request, res: Response
 export const incrementTourViews = asyncHandler(async (req: Request, res: Response) => {
   const { tourId } = req.params;
   const views = await TourService.incrementTourViews(tourId);
-  
+
   sendSuccess(res, { views }, RESPONSE_MESSAGES.VIEW_INCREMENTED);
 });
 
@@ -265,6 +265,30 @@ export const incrementTourViews = asyncHandler(async (req: Request, res: Respons
 export const incrementTourBookings = asyncHandler(async (req: Request, res: Response) => {
   const { tourId } = req.params;
   const bookingCount = await TourService.incrementTourBookings(tourId);
-  
+
   sendSuccess(res, { bookingCount }, RESPONSE_MESSAGES.BOOKING_INCREMENTED);
+});
+
+/**
+ * Check tour availability for a specific date
+ */
+export const checkTourAvailability = asyncHandler(async (req: Request, res: Response) => {
+  const { tourId } = req.params;
+  const { date } = req.query;
+
+  if (!date) {
+    return sendError(res, 'Date parameter is required', 400);
+  }
+
+  const departureDate = new Date(date as string);
+  if (isNaN(departureDate.getTime())) {
+    return sendError(res, 'Invalid date format', 400);
+  }
+
+  // Import BookingService dynamically to avoid circular dependencies
+  const { BookingService } = await import('../../bookings/services/bookingService');
+
+  const availability = await BookingService.checkAvailability(tourId, departureDate);
+
+  return sendSuccess(res, availability, 'Tour availability checked successfully');
 });

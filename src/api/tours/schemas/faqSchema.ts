@@ -13,8 +13,12 @@ const faqSchema = new mongoose.Schema({
   sortOrder: {
     type: Number,
     default: 0
+  },
+  faqId: {
+    type: String,
+    required: false // Optional for backward compatibility
   }
-}, { 
+}, {
   _id: true,
   timestamps: false
 });

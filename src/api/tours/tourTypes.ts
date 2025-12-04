@@ -1,5 +1,5 @@
 import mongoose, { Document, Schema } from 'mongoose';
-import {User} from "../user/userTypes";
+import { User } from "../user/userTypes";
 
 // Define pricing option interface
 export interface PricingOption {
@@ -146,212 +146,213 @@ export interface UnifiedTourDates {
 }
 
 export interface Tour extends Document {
-    title: string;
-    excerpt: string;
-    description: string;
-    author: mongoose.Types.ObjectId | User;
-    code: string;
-    // Old pricing (keeping for backward compatibility)
+  title: string;
+  excerpt: string;
+  description: string;
+  author: mongoose.Types.ObjectId | User;
+  code: string;
+  // Old pricing (keeping for backward compatibility)
+  price: number;
+  originalPrice?: number;
+  // New advanced pricing structure
+  basePrice?: number;
+  pricePerPerson?: boolean;
+  groupSize?: number;
+  saleEnabled?: boolean;
+  salePrice?: number;
+  // Price lock settings
+  priceLockDate?: Date;
+  // Discount specific fields
+  discountEnabled?: boolean;
+  discountPrice?: number;
+  discountDateRange?: {
+    from: Date;
+    to: Date;
+  };
+  minSize: number;
+  maxSize: number;
+  pricingOptionsEnabled?: boolean;
+  pricingGroups?: PricingGroup[];
+  pricingOptions?: Array<{
+    name: string;
+    category: string;
+    customCategory?: string;
     price: number;
-    originalPrice?: number;
-    // New advanced pricing structure
-    basePrice?: number;
-    pricePerPerson?: boolean;
-    groupSize?: number;
-    saleEnabled?: boolean;
-    salePrice?: number;
-    // Price lock settings
-    priceLockDate?: Date;
-    // Discount specific fields
-    discountEnabled?: boolean;
+    discountEnabled: boolean;
     discountPrice?: number;
     discountDateRange?: {
-        from: Date;
-        to: Date;
+      from: Date;
+      to: Date;
     };
-        minSize: number;
-        maxSize: number;
-    pricingOptionsEnabled?: boolean;
-    pricingGroups?: PricingGroup[];
-    pricingOptions?: Array<{
-        name: string;
-        category: string;
-        customCategory?: string;
-        price: number;
-        discountEnabled: boolean;
-        discountPrice?: number;
-        discountDateRange?: {
-            from: Date;
-            to: Date;
-        };
-        paxRange: {
-            minPax: number;
-            maxPax: number;
-        };
+    paxRange: {
+      minPax: number;
+      maxPax: number;
+    };
+  }>;
+  authorName: User;
+  coverImage: string;
+  file: string;
+  createdAt: Date;
+  updatedAt: Date;
+  tourStatus: string;
+  outline: string;
+  itinerary: {
+    day?: string;
+    title: string;
+    description: string;
+    date?: Date;
+  }[];
+  category: mongoose.Types.ObjectId[];
+  dates: {
+    id: mongoose.Types.ObjectId;
+    tripDuration: string;
+    startDate: Date;
+    endDate: Date;
+  },
+  include: string[];
+  exclude: string[];
+  facts: {
+    id: mongoose.Types.ObjectId;
+    title?: string;
+    field_type?: "Plain Text" | "Single Select" | "Multi Select";
+    value?: string[] | { label: string; value: string; }[];
+    icon?: string;
+    factId?: string; // Reference to master fact _id for cascade updates
+  }[],
+  faqs: {
+    id: mongoose.Types.ObjectId;
+    question: string;
+    answer: string;
+  }[],
+  reviews: Review[];
+  gallery: {
+    id: mongoose.Types.ObjectId;
+    image: string;
+  }[],
+  map: string,
+  location: {
+    id: mongoose.Types.ObjectId;
+    street: string;
+    city: string;
+    state: string;
+    country: string;
+    lat: number;
+    lng: number;
+  },
+  enquiry: boolean;
+  discount?: Discount;
+  isSpecialOffer: boolean;
+  destination?: mongoose.Types.ObjectId | null;
+  views?: number;
+  bookingCount?: number;
+  averageRating?: number;
+  reviewCount?: number;
+  approvedReviewCount?: number;
+  hasDiscount?: boolean;
+  discountPercentage?: number;
+  discountAmount?: number;
+  discountedPrice?: number;
+  addOns?: AddOn[];
+  promoCodes?: PromoCode[];
+  fixedDepartures?: FixedDeparture[];
+  // Legacy date fields (for backward compatibility)
+  fixedDeparture?: boolean;
+  multipleDates?: boolean;
+  tourDates?: {
+    days?: number;
+    nights?: number;
+    dateRange?: {
+      from: Date;
+      to: Date;
+    };
+    isRecurring?: boolean;
+    recurrencePattern?: string;
+    recurrenceEndDate?: Date;
+  };
+  fixedDate?: {
+    dateRange?: {
+      from: Date;
+      to: Date;
+    };
+  };
+  dateRanges?: Array<{
+    id?: string;
+    label: string;
+    dateRange: {
+      from: Date;
+      to: Date;
+    };
+    selectedPricingOptions: Array<string | {
+      id: string;
+      name: string;
+      category: string;
+      price: number;
     }>;
-    authorName: User;
-    coverImage: string;
-    file: string;
-    createdAt: Date;
-    updatedAt: Date;
-    tourStatus: string;
-    outline: string;
-    itinerary:{
-      day?: string;
-      title: string;
-      description: string;
-      date?: Date;
-    }[];
-    category: mongoose.Types.ObjectId[];
-    dates: {
-      id: mongoose.Types.ObjectId;
-      tripDuration: string;
-      startDate: Date;
-      endDate: Date;
-    },
-    include: string[];
-    exclude: string[];
-    facts: {
-      id: mongoose.Types.ObjectId;
-      title?: string;
-      field_type?: "Plain Text" | "Single Select" | "Multi Select";
-      value?: string[] | { label: string; value: string; }[];
-      icon?: string;
-    }[],
-    faqs: {
-      id: mongoose.Types.ObjectId;
-      question: string;
-      answer: string;
-    }[],
-    reviews: Review[];
-    gallery: {
-      id: mongoose.Types.ObjectId;
-      image: string;
-    }[],
-    map: string,
-    location:{
-      id: mongoose.Types.ObjectId;
-      street: string;
-      city: string;
-      state: string;
-      country: string;
-      lat: number;
-      lng: number;
-    },
-    enquiry: boolean;
-    discount?: Discount;
-    isSpecialOffer: boolean;
-    destination?: mongoose.Types.ObjectId | null;
-    views?: number;
-    bookingCount?: number;
-    averageRating?: number;
-    reviewCount?: number;
-    approvedReviewCount?: number;
-    hasDiscount?: boolean;
-    discountPercentage?: number;
-    discountAmount?: number;
-    discountedPrice?: number;
-    addOns?: AddOn[];
-    promoCodes?: PromoCode[];
-    fixedDepartures?: FixedDeparture[];
-    // Legacy date fields (for backward compatibility)
-    fixedDeparture?: boolean;
-    multipleDates?: boolean;
-    tourDates?: {
-      days?: number;
-      nights?: number;
-      dateRange?: {
-        from: Date;
-        to: Date;
-      };
-      isRecurring?: boolean;
-      recurrencePattern?: string;
-      recurrenceEndDate?: Date;
-    };
-    fixedDate?: {
-      dateRange?: {
-        from: Date;
-        to: Date;
-      };
-    };
-    dateRanges?: Array<{
-      id?: string;
-      label: string;
-      dateRange: {
-        from: Date;
-        to: Date;
-      };
-      selectedPricingOptions: Array<string | {
-        id: string;
-        name: string;
-        category: string;
-        price: number;
-      }>;
-      isRecurring: boolean;
-      recurrencePattern?: string;
-      recurrenceEndDate?: Date;
-    }>;
-    
-    // New unified tour dates structure
-    unifiedTourDates?: UnifiedTourDates;
-    
-    // Virtual Methods
-    hasActiveDiscount?: () => boolean;
-    getDiscountPercentage?: () => number;
-    getDiscountAmount?: () => number;
-    getDiscountedPrice?: () => number;
+    isRecurring: boolean;
+    recurrencePattern?: string;
+    recurrenceEndDate?: Date;
+  }>;
+
+  // New unified tour dates structure
+  unifiedTourDates?: UnifiedTourDates;
+
+  // Virtual Methods
+  hasActiveDiscount?: () => boolean;
+  getDiscountPercentage?: () => number;
+  getDiscountAmount?: () => number;
+  getDiscountedPrice?: () => number;
 }
 
 export interface ReviewReply {
-    _id?: mongoose.Types.ObjectId;
-    user: mongoose.Types.ObjectId;
-    comment: string;
-    createdAt: Date;
-    likes: number;
-    views: number;
+  _id?: mongoose.Types.ObjectId;
+  user: mongoose.Types.ObjectId;
+  comment: string;
+  createdAt: Date;
+  likes: number;
+  views: number;
 }
 
 export interface Review {
-    _id?: mongoose.Types.ObjectId;
-    user: mongoose.Types.ObjectId;
-    tour: mongoose.Types.ObjectId; // Add the tour reference to match MongoDB validation
-    rating: number;
-    comment: string;
-    status: 'pending' | 'approved' | 'rejected';
-    likes: number;
-    views: number;
-    replies: ReviewReply[];
-    createdAt: Date;
+  _id?: mongoose.Types.ObjectId;
+  user: mongoose.Types.ObjectId;
+  tour: mongoose.Types.ObjectId; // Add the tour reference to match MongoDB validation
+  rating: number;
+  comment: string;
+  status: 'pending' | 'approved' | 'rejected';
+  likes: number;
+  views: number;
+  replies: ReviewReply[];
+  createdAt: Date;
 }
 
 export interface Discount {
   discountEnabled: boolean;
-    discountPrice: number;
-    discountDateRange: {
-      from: Date;
-      to: Date;
-    };
-    createdAt: Date;
-    updatedAt: Date;
+  discountPrice: number;
+  discountDateRange: {
+    from: Date;
+    to: Date;
+  };
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface FactValue {
-    value?: string;
-    label?: string;
-    [key: string]: any; // Adjust this if you have specific keys or values
+  value?: string;
+  label?: string;
+  [key: string]: any; // Adjust this if you have specific keys or values
 }
 
 export interface Destination extends Document {
-    name: string;
-    description: string;
-    coverImage: string;
-    country: string;
-    region?: string;
-    city?: string;
-    popularity: number;
-    featuredTours?: mongoose.Types.ObjectId[];
-    isActive: boolean;
-    userId: mongoose.Types.ObjectId;
-    createdAt: Date;
-    updatedAt: Date;
+  name: string;
+  description: string;
+  coverImage: string;
+  country: string;
+  region?: string;
+  city?: string;
+  popularity: number;
+  featuredTours?: mongoose.Types.ObjectId[];
+  isActive: boolean;
+  userId: mongoose.Types.ObjectId;
+  createdAt: Date;
+  updatedAt: Date;
 }

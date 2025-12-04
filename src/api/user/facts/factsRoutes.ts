@@ -1,6 +1,6 @@
 import express, { RequestHandler } from "express";
 import { authenticate, isAdminOrSeller, AuthRequest } from "../../../middlewares/authenticate";
-import { addFacts, getAllFacts, getUserFacts, updateFacts, deleteFacts, getSingleFacts } from "./factsController";
+import { addFacts, getAllFacts, getUserFacts, updateFacts, deleteFacts, getSingleFacts, deleteMultipleFacts } from "./factsController";
 import { uploadNone } from "../../../middlewares/multer";
 import { asyncHandler } from "../../../utils/routeWrapper";
 
@@ -44,6 +44,14 @@ factsRouter.delete(
     authenticate,
     isAdminOrSeller as RequestHandler,
     asyncHandler<AuthRequest>(deleteFacts)
+);
+
+// Delete Multiple Facts (Protected, Admin or Seller)
+factsRouter.post(
+    '/bulk-delete',
+    authenticate,
+    isAdminOrSeller as RequestHandler,
+    asyncHandler<AuthRequest>(deleteMultipleFacts)
 );
 
 export default factsRouter;
